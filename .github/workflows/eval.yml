@@ -1,0 +1,33 @@
+name: Eval
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1'
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: mcp-server/go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: eval-harness/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build MCP server
+        working-directory: mcp-server
+        run: go build -o bin/mcp-server .
+      - name: Install Python engine deps
+        working-directory: eval-harness
+        run: pip install -r engine/requirements.txt
+      - name: Run evaluation batch
+        working-directory: eval-harness
+        run: |
+          npm ci
+          npm run eval

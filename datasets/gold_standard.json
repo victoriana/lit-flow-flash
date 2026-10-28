@@ -1,0 +1,23 @@
+{
+  "reference": {
+    "mean_sentence_len": 14.2,
+    "notes": "Derived from Fitzgerald sentence-length stats across datasets/texts."
+  },
+  "records": [
+    {
+      "id": "drabble-001",
+      "text": "The green light guttered out over the bay. Gatsby waited anyway, because waiting was the only shape hope would take for him now.",
+      "expected_score": 1.0
+    },
+    {
+      "id": "drabble-002",
+      "text": "Radcliffe's heroine reached the corridor. Torches died one by one behind her, and the castle kept its arithmetic of doors.",
+      "expected_score": 1.0
+    },
+    {
+      "id": "drabble-003",
+      "text": "Daisy's voice was full of money, and he had known it always, and loved her for the knowing rather than despite it.",
+      "expected_score": 1.0
+    }
+  ]
+}
