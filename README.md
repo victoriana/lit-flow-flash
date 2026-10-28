@@ -4,6 +4,27 @@ A reading-coach agent that streams public-domain literary texts to a reader,
 tracks milestones through an explicit state machine, and scores generated
 prose against a stylistic gold standard.
 
+## How it works
+
+The app follows a simple three-stage loop:
+
+1. **Read** — The user selects a chunk from a public-domain literary work and
+   reads it for about 30 minutes at their own pace (user-enforced; the app
+   does not time it). The user then specifies the start and end sentences and
+   the title of the work, so the engine knows exactly which block of
+   public-domain text to use as the evaluation reference.
+2. **Write** — After reading, the user writes a drabble (a short narrative)
+   that echoes the author's style, borrows motifs from the passage, and
+   reinterprets them into a new context. The drabble must stick to a
+   predefined length — usually exactly 100 words.
+3. **Evaluate** — The agent scores the drabble against the marked passage for
+   style alignment, motif recall, and creative transposition, then delivers
+   encouraging, fact-based feedback.
+
+The session state machine enforces the order: a user cannot start writing
+until the reading milestone is complete, and the evaluator only runs after a
+drabble is submitted.
+
 ## Monorepo layout
 
 | Path | Runtime | Role |
@@ -31,7 +52,6 @@ Step 2 - install and run the eval harness:
 
 - LITFLOW_TEXTS - override path to the text corpus (default ../datasets/texts)
 - LITFLOW_STATE_DIR - where reading-history JSON is stored (default ../.state)
-
 ## Conventions
 
 - Two separate Go modules; no shared workspace file yet.
