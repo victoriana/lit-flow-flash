@@ -1,8 +1,7 @@
 # lit-flow-flash
 
-A reading-coach agent that streams public-domain literary texts to a reader,
-tracks milestones through an explicit state machine, and scores generated
-prose against a stylistic gold standard.
+Instead of letting algorithms fragment your attention, you take back control by reading quality literature deliberately for thirty minutes, then flash-writing a 100-word drabble that echoes its style, borrows its motifs, and reinterprets them in a new context. lit-flow-flash acts as an encouraging, fact-based coach that scores your prose against the passage you read, tracking clarity trends over time to help transform scattered thinking into precise, intentional focus.
+
 
 ## How it works
 
