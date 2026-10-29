@@ -68,11 +68,6 @@ Step 2 - install and run the eval harness:
 
 - LITFLOW_TEXTS - override path to the text corpus (default ../datasets/texts)
 - LITFLOW_STATE_DIR - where reading-history JSON is stored (default ../.state)
-
-## Environment variables
-
-- LITFLOW_TEXTS - override path to the text corpus (default ../datasets/texts)
-- LITFLOW_STATE_DIR - where reading-history JSON is stored (default ../.state)
   
 ## Conventions
 
