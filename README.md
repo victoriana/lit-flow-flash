@@ -74,4 +74,4 @@ Step 2 - install and run the eval harness:
 - Two separate Go modules; no shared workspace file yet.
 - eval-harness is ESM ("type": "module") and must stay in sync with
   tsconfig.json module setting "NodeNext".
-- Public-domain sources only: F. Scott Fitzgerald and Ann Radcliffe.
+- Public-domain sources only: such as F. Scott Fitzgerald and Ann Radcliffe.
