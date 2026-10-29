@@ -18,3 +18,6 @@ venv/
 
 # Logs
 *.log
+orchestrator/.env
+orchestrator/node_modules/
+.state/

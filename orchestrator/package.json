@@ -1,0 +1,21 @@
+{
+  "name": "orchestrator",
+  "version": "1.0.0",
+  "description": "MCP client that drives the read-write-score loop for lit-flow-flash",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/run.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@google/genai": "^2.32.0",
+    "dotenv": "^18.0.9"
+  }
+}
