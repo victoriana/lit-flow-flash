@@ -17,16 +17,17 @@ The coach closes the loop with fact-based feedback: how well did your drabble ma
 
 The app follows a simple three-stage loop:
 
-1. **Read** — The user selects a chunk from a public-domain literary work and
+1. **Read (No external augmentation)** — The user selects a chunk from a public-domain literary work and
    reads it for about 30 minutes at their own pace (user-enforced; the app
    does not time it). The user then specifies the start and end sentences and
    the title of the work, so the engine knows exactly which block of
    public-domain text to use as the evaluation reference.
-2. **Write** — After reading, the user writes a drabble (a short narrative)
-   that echoes the author's style, borrows motifs from the passage, and
-   reinterprets them into a new context. The drabble must stick to a
-   predefined length — usually exactly 100 words.
-3. **Evaluate** — The agent scores the drabble against the marked passage for
+2. **Write (Closed-book)** — Immediately after reading, the user writes a drabble 
+   (a short narrative) entirely from memory, with zero assistance from 
+   generative AI or text tools. The piece must echo the author's style, 
+   reinterpret specific motifs into a novel context, and adhere to a 
+   strict, predefined constraint of exactly 100 words.
+3. **Evaluate(The AI part)** — The agent scores the drabble against the marked passage for
    style alignment, motif recall, and creative transposition, then delivers
    encouraging, fact-based feedback.
 
