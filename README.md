@@ -1,10 +1,10 @@
 # lit-flow-flash
 
-Instead of letting generative content ad infinitum fragment your attention, you flow-read quality literature deliberately for thirty minutes, then flash-write a 100-word drabble that echoes its style, borrows its motifs, and reinterprets them in a new context. lit-flow-flash acts as an encouraging, fact-based coach that scores your prose against the passage you read, tracking clarity trends over time to help transform expansive, dreamlike, evocative reading into concise, precise, poignant writing.
+Instead of letting generative content ad infinitum fragment your attention, you flow-read quality literature deliberately for thirty minutes, then flash-write a 100-word drabble that echoes its style, borrows its motifs, and reinterprets them in a new context. **lit-flow-flash** acts as an encouraging, fact-based coach that scores your prose against the passage you read, tracking clarity trends over time to help transform expansive, dreamlike, evocative reading into concise, precise, poignant writing.
 
 ## Why it works
 
-lit-flow-flash joins focused reading and deliberate writing into a single practice, and measures the result.
+**lit-flow-flash** joins focused reading and deliberate writing into a single practice, and measures the result.
 
 The thirty-minute flow-read is deliberate immersion in prose that has survived centuries of scrutiny. You anchor your attention to a specific passage — the one you yourself marked — rather than an infinite feed.
 
