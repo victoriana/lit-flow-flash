@@ -1,6 +1,6 @@
 # lit-flow-flash
 
-Instead of letting algorithms fragment your attention, you take back control by flow-reading quality literature deliberately for thirty minutes, then flash-writing a 100-word drabble that echoes its style, borrows its motifs, and reinterprets them in a new context. **lit-flow-flash** acts as an encouraging, fact-based coach that scores your prose against the passage you read, tracking clarity trends over time to help transform expansive, dreamlike, evocative reading into concise, precise, poignant writing.
+Instead of letting algorithms fragment your attention, you take back control by flow-reading quality literature deliberately for thirty minutes, then flash-writing a 100-word drabble that echoes its style, borrows its motifs, and reinterprets them in a new context. **lit-flow-flash** acts as an encouraging, fact-based coach that scores +your+ prose against the passage *you* read, tracking clarity trends over time to help transform expansive, dreamlike, evocative reading into concise, precise, poignant writing.
 
 
 ## How it works
