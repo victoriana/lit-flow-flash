@@ -10,7 +10,7 @@ The thirty-minute flow-read is deliberate immersion in prose that has survived c
 
 The subsequent drabble forces distillation. A hundred words can carry no filler. Every word must earn its place by echoing the tone of what you read, by carrying a motif forward, by reinterpreting a concept into something new. This is not a summary. It is a creative transposition.
 
-The coach closes the loop with fact-based feedback: how well did your drabble match the passage's style? Which motifs did you recall? Did your reinterpretation feel fresh or derivative? Over time, you see your own clarity trends — whether you are getting better at holding, distilling, and transforming. That feedback loop is what turns reading into training.
+The coach closes the loop with fact-based feedback: how well did your drabble match the passage's style? Which motifs did you recall? Did your reinterpretation feel fresh or derivative? Over time, you see your own clarity trends — whether you are getting better at holding, distilling, and transforming. That feedback loop turns meditative absorption into active cognizance.
 
 ## How it works
 
