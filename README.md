@@ -40,11 +40,6 @@ drabble is submitted.
 | Go | Orchestrator + MCP server (session state, turn loop, tool handlers) | `app/main.go`, `app/internal/agent/orchestrator.go`, `mcp-server/main.go` |
 | Python | Stylistic scoring engine (style alignment, motif recall, transposition) | `eval-harness/engine/evaluator.py` |
 | TypeScript | Eval harness runner (batch execution, metric aggregation, reporting) | `eval-harness/run-eval.ts`, `eval-harness/src/metrics.ts` |
-| Ruby | *(not currently used)* | — |
-
-> **Note:** Ruby is not present in this project. If you intended a fourth
-> language (e.g. for a CLI wrapper or data pipeline), let me know where it
-> fits and I'll add it.
 
 ## Monorepo layout
 
