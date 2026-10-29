@@ -47,34 +47,98 @@ drabble is submitted.
 
 | Path | Runtime | Role |
 | --- | --- | --- |
-| app/ | Go | Orchestrator: human-in-the-loop turn loop + session state machine |
+| orchestrator/ | TypeScript | Main app: MCP client, Gemini judge, state management |
 | mcp-server/ | Go | MCP service layer exposing books.get_chunk and user.read_history |
-| eval-harness/ | TypeScript + Python | Batch runner (run-eval.ts) driving a Python stylistic engine |
-| datasets/ | JSON / text | Gold-standard records and local public-domain corpora |
+| eval-harness/ | TypeScript + Python | Legacy batch runner for gold-standard validation |
+| datasets/ | JSON / text | Text corpus and gold-standard records |
+| app/ | Go | Utility module (zero external dependencies) |
 
 ## Quick start
 
-Step 1 - build the Go services:
+### Prerequisites
 
-    cd app && go build ./... && cd ..
-    cd mcp-server && go build -o bin/mcp-server . && cd ..
+- Go 1.27+
+- Node.js 18+ with npm
+- Google API key (from [Google AI Studio](https://aistudio.google.com))
 
-Step 2 - install and run the eval harness:
+Step 1 — build the Go MCP server:
 
-    cd eval-harness
-    npm install
-    pip install -r engine/requirements.txt
-    npm run eval
+    cd mcp-server && go build -o ../bin/mcp-server.exe . && cd ..
 
-## Environment variables
+Step 2 — install the orchestrator:
 
-- LITFLOW_TEXTS - override path to the text corpus (default ../datasets/texts)
-- LITFLOW_STATE_DIR - where reading-history JSON is stored (default ../.state)
+    cd orchestrator && npm install && cd ..
+
+Step 3 — set your API key:
+
+    export GEMINI_API_KEY=your_key_here
+
+Step 4 — add reading material to `datasets/texts/`:
+
+    curl -o datasets/texts/gatsby.txt "https://www.gutenberg.org/files/64317/64317-0.txt"
+
+Step 5 — run:
+
+    cd orchestrator && npm start
+
+See the **Configuration** table below for `TEXT_ID`, `CHUNKS`, `MIN_WORDS`, etc.
+
+## Configuration
+
+| Variable | Default | Description |
+|---|---|---|
+| `TEXT_ID` | `gatsby` | Filename (without `.txt`) in `datasets/texts/` |
+| `CHUNKS` | `3` | Number of chunks to read |
+| `CHUNK_OFFSET` | `0` | Start reading from this chunk index |
+| `MIN_WORDS` | `15` | Minimum word count for flash piece |
+| `MAX_WORDS` | `25` | Maximum word count for flash piece |
+| `USER_ID` | `default` | Session identifier for `.state/` |
+
+Examples:
+
+    # Practice on the first chunk
+    TEXT_ID=gatsby CHUNKS=1 npm start
+
+    # Read from the middle of the book
+    TEXT_ID=gatsby CHUNKS=2 CHUNK_OFFSET=5 npm start
+
+    # Full 100-word drabble practice
+    MIN_WORDS=95 MAX_WORDS=105 npm start
+
+## Scoring
+
+Gemini evaluates each flash piece on five metrics (0–10 scale):
+
+| Metric | Description |
+|---|---|
+| `style_alignment` | How closely the prose matches the source author's voice |
+| `motif_reuse` | Whether you reused images, themes, or symbols from the passage |
+| `precision` | Whether each word is exact and purposeful |
+| `concision` | How tight the writing is — no wasted words |
+| `originality` | Whether the piece transforms influences into something fresh |
+
+Each entry includes `notes` with specific, actionable feedback and `word_count`.
+
+All entries are saved to `.state/default.json`.
+
+## Environment Variables
+
+### Orchestrator
+- `GEMINI_API_KEY` — Google AI Studio API key (required)
+- `TEXT_ID` — Filename in `datasets/texts/` (default: gatsby)
+- `CHUNKS` — Number of chunks (default: 3)
+- `CHUNK_OFFSET` — Starting chunk index (default: 0)
+- `MIN_WORDS` — Minimum flash piece length (default: 15)
+- `MAX_WORDS` — Maximum flash piece length (default: 25)
+
+### MCP Server
+- `LITFLOW_TEXTS` — Path to text corpus (default: ../datasets/texts)
+- `LITFLOW_STATE_DIR` — Where reading-history JSON is stored (default: ../.state)
   
 ## Conventions
 
-- Two separate Go modules; no shared workspace file yet.
-- eval-harness is ESM ("type": "module") and must stay in sync with
-  tsconfig.json module setting "NodeNext".
-- Public-domain sources only (U.S. publication dates matching public domain availability, e.g., F. Scott Fitzgerald, Ann Radcliffe).
-
+- The orchestrator (`orchestrator/`) speaks MCP as a client to `mcp-server/` and calls Gemini for judging.
+- `eval-harness/` is for validating against pre-made examples; it does not score user entries.
+- `app/` is a dependency-free Go module for future utility code.
+- Public-domain sources only (e.g., Fitzgerald, Radcliffe).
+- `.state/` is not committed — it contains personal practice data.
