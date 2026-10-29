@@ -17,7 +17,7 @@ The coach closes the loop with fact-based feedback: how well did your drabble ma
 
 The app follows a simple three-stage loop:
 
-1. **Read (No external augmentation)** — The user selects a chunk from a public-domain literary work and
+1. **Read (Unaugmented)** — The user selects a chunk from a public-domain literary work and
    reads it for about 30 minutes at their own pace (user-enforced; the app
    does not time it). The user then specifies the start and end sentences and
    the title of the work, so the engine knows exactly which block of
@@ -27,7 +27,7 @@ The app follows a simple three-stage loop:
    generative AI or text tools. The piece must echo the author's style, 
    reinterpret specific motifs into a novel context, and adhere to a 
    strict, predefined constraint of exactly 100 words.
-3. **Evaluate(The AI part)** — The agent scores the drabble against the marked passage for
+3. **Evaluate (Agentic)** — The agent scores the drabble against the marked passage for
    style alignment, motif recall, and creative transposition, then delivers
    encouraging, fact-based feedback.
 
