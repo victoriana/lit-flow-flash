@@ -6,7 +6,8 @@ Instead of letting generative content ad infinitum fragment your attention, you 
 
 **lit-flow-flash** joins focused reading and deliberate writing into a single practice, and measures the result.
 
-The thirty-minute flow-read is deliberate immersion in prose that has survived centuries of scrutiny. You anchor your attention to a specific passage — the one you yourself marked — rather than an infinite feed.
+The thirty-minute flow-read is deliberate immersion in public domain prose 
+that has survived over a century of academic and literary scrutiny.. You anchor your attention to a specific passage — the one you yourself marked — rather than an infinite feed.
 
 The subsequent drabble forces distillation. A hundred words can carry no filler. Every word must earn its place by echoing the tone of what you read, by carrying a motif forward, by reinterpreting a concept into something new. This is not a summary. It is a creative transposition.
 
