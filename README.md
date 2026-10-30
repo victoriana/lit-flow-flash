@@ -31,9 +31,7 @@ The app follows a simple three-stage loop:
    style alignment, motif recall, and creative transposition, then delivers
    encouraging, fact-based feedback.
 
-The session state machine enforces the order: a user cannot start writing
-until the reading milestone is complete, and the evaluator only runs after a
-drabble is submitted.
+The orchestrator enforces the loop sequentially (a future state machine will make this explicit): it fetches the passage, waits for your drabble, then scores and saves. Order is structural — each step completes before the next begins.
 
 ## Languages
 
