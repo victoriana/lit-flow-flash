@@ -110,32 +110,18 @@ All progress is saved to \`.state/<USER_ID>.json\` with full metric breakdowns, 
 
 ## 💡 What Makes This Special
 
-Standard AI chat interfaces are built to be fluid, accommodating, and endlessly polite—they want to please you, keep the conversation moving, and forgive your mistakes. **lit-flow-flash** strips away that conversational cushion and replaces it with **rigorous, unyielding friction**.
+Standard AI chat interfaces are built to be fluid, accommodating, and endlessly polite—they want to please you, keep the conversation moving, and forgive your mistakes. **lit-flow-flash** strips away that conversational cushion and replaces it with **programmatic friction**.
 
-It introduces an **agentic-adjacent constraint loop** where the application orchestrates the process—generating dynamic prompts, enforcing strict word boundaries, evaluating your output against hard criteria, and tracking your long-term progression—rather than just waiting passively for your next prompt.
+Instead of acting as a passive chat prompt, it operates as an **automated constraint loop**: generating targeted literary passages, enforcing rigid word-count boundaries before evaluation, scoring your output against objective metrics, and persisting your long-term progression.
 
-### The 4 Advantages Over a Standard Chat Session
+### The 2 Core Systems You Can't Get in a Standard Chat
 
-1. **Zero-Context Blindness (The Closed-Book Trap)**  
-   In a normal chat, the AI shares your immediate context, encouraging passive reliance on safety nets. **lit-flow-flash** relies on user-enforced discipline: while the passage remains visible on screen, you commit to drafting purely from memory and cognitive imprinting without looking back. This deliberate restraint forces your brain to internalize rhythm, syntax, and motifs rather than relying on active glancing or copy-pasting.
+1. **Programmatic Word-Count Boundaries & Strict Evaluation**  
+   An ordinary chat model will happily evaluate a draft regardless of length, often offering unhelpful praise. **lit-flow-flash** acts as an unyielding structural gatekeeper: it strictly validates your word counts locally before scoring, evaluates concision relative to your chosen form (Epigram, Vignette, or Drabble), computes a total score out of 100, and explicitly penalizes derivative phrasing or verbatim copying.
 
-2. **Brutal, Non-Flattering Objective Scoring**  
-   Standard assistants are hardwired to praise creative twists. This app acts as an uncompromising literary critic. It evaluates your piece on strict structural metrics (\`Epigram\`, \`Vignette\`, or \`Drabble\` bounds), computes a total score out of 100, and calls out lazy phrasing or verbatim plagiarism instantly.
-
-3. **Longitudinal Tracking & Accumulating State**  
-   Every session is saved locally to \`.state/default.json\`. Over weeks and months, this builds an unchangeable historical record of your clarity and stylistic trends, turning isolated writing exercises into a quantifiable mastery loop across authors like Ann Radcliffe or F. Scott Fitzgerald.
-
-4. **Habit Architecture & Flow State Protection**  
-   A web browser tab is riddled with distractions. Running a dedicated terminal tool (\`npm start\`) creates an intentional, ritualized loop:  
-   Choose Form -> Generate Passage -> Read -> Write Under Constraints -> Face Judgment
+2. **Local State Persistence & Longitudinal Tracking**  
+   Conversations in standard AI interfaces disappear into unstructured chat history. Every session in **lit-flow-flash** automatically appends to a local state repository (`.state/<USER_ID>.json`). Over weeks and months, this accumulates a structured, machine-readable dataset of your score trends across style alignment, motif reuse, precision, concision, and originality.
 
 ### A Cognitive Gym for Style Transposition
 
-If your goal is to master literary works so deeply that their cadence alters your natural speech and expression, this app functions as a cognitive gym. Just like lifting weights creates micro-tears that force muscle growth, the combination of strict word boundaries and harsh scoring forces your brain to distill expansive, dreamlike reading into sharp, precise, and resonant prose.
-`;
-
-export async function writeReadme(targetPath: string = "../README.md") {
-  await writeFile(targetPath, README_CONTENT, "utf-8");
-  console.log(`README.md written successfully to ${targetPath}`);
-}
-
+If your goal is to master literary works so deeply that their cadence alters your natural speech and expression, this app functions as a cognitive gym. Just like lifting weights creates micro-tears that force muscle growth, combining hard structural constraints with objective scoring forces your brain to distill expansive, dreamlike reading into sharp, precise, and resonant prose.
