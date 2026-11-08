@@ -43,6 +43,26 @@ async function chooseForm(rl: ReturnType<typeof createInterface>): Promise<Form>
 // Hyphenated words (e.g. "well-lit") count as one word.
 const countWords = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
 
+// Helper to wrap long strings so they fit nicely inside console.table
+function wrapText(text: string, maxLineLength = 65): string {
+  const words = text.split(" ");
+  let lines: string[] = [];
+  let currentLine = "";
+
+  for (const word of words) {
+    if ((currentLine + " " + word).trim().length > maxLineLength) {
+      lines.push(currentLine.trim());
+      currentLine = word;
+    } else {
+      currentLine = currentLine ? currentLine + " " + word : word;
+    }
+  }
+  if (currentLine) {
+    lines.push(currentLine.trim());
+  }
+  return lines.join("\n");
+}
+
 async function main() {
   const rl = createInterface({ input, output });
 
@@ -62,7 +82,7 @@ async function main() {
 
   // 2. Fetch/generate passage via Gemini
   console.log(`\nGenerating passage for "${bookQuery}"...\n`);
-  const passagePrompt = `Generate a single compelling 250-300 word passage from or strictly in the authentic prose style and Gothic/literary voice of "${bookQuery}". Include vivid imagery, distinct tone, and central motifs characteristic of the work. Output ONLY the literary passage text without any conversational preamble, titles, or closing commentary.`;
+  const passagePrompt = `Generate a single compelling 250-300 word passage from or strictly in the authentic prose style and literary voice of "${bookQuery}". Include vivid imagery, distinct tone, and central motifs characteristic of the work. Output ONLY the literary passage text without any conversational preamble, titles, or closing commentary.`;
 
   const passageGen = await ai.models.generateContent({
     model: MODEL_NAME,
@@ -96,7 +116,7 @@ async function main() {
   console.log("\nEvaluating your submission...\n");
   const judgePrompt = `You are a strict literary evaluator. Score this piece
 against the source passage on style alignment, motif reuse, precision, concision, originality.
-Score each metric on a 0-10 scale.
+Score each of these 5 metrics strictly on a 0-10 integer scale.
 
 The writer chose the "${form.name}" form, which requires ${target} words. This submission is ${wc} words.
 Judge concision and precision relative to that form's length, and penalize if the word count is outside the allowed range.
@@ -111,7 +131,7 @@ PIECE (${form.name}):
 ${piece}
 
 Respond ONLY with valid JSON — no markdown, no explanation:
-{"word_count": ${wc}, "style_alignment": 0.0, "motif_reuse": 0.0, "precision": 0.0, "concision": 0.0, "originality": 0.0, "notes": "one sentence"}`;
+{"word_count": ${wc}, "style_alignment": 0, "motif_reuse": 0, "precision": 0, "concision": 0, "originality": 0, "notes": "one sentence"}`;
 
   const gen = await ai.models.generateContent({
     model: MODEL_NAME,
@@ -119,7 +139,28 @@ Respond ONLY with valid JSON — no markdown, no explanation:
   });
   const raw = gen.text ?? "";
   const jsonStr = raw.replace(/```json|```/g, "").trim();
-  const verdict = JSON.parse(jsonStr);
+  const rawVerdict = JSON.parse(jsonStr);
+
+  // Compute total mark out of 100 (5 metrics * 10 max each = 50 total * 2)
+  const style = Number(rawVerdict.style_alignment ?? 0);
+  const motif = Number(rawVerdict.motif_reuse ?? 0);
+  const prec = Number(rawVerdict.precision ?? 0);
+  const conc = Number(rawVerdict.concision ?? 0);
+  const orig = Number(rawVerdict.originality ?? 0);
+
+  const totalScore = (style + motif + prec + conc + orig) * 2;
+
+  // Format table output with /10 metrics, total /100, and wrapped notes
+  const verdict = {
+    word_count: `${rawVerdict.word_count} words`,
+    style_alignment: `${style}/10`,
+    motif_reuse: `${motif}/10`,
+    precision: `${prec}/10`,
+    concision: `${conc}/10`,
+    originality: `${orig}/10`,
+    total_score: `${totalScore}/100`,
+    notes: wrapText(rawVerdict.notes ?? "", 65),
+  };
 
   console.log("\n=== JUDGMENT ===");
   console.table(verdict);
@@ -138,6 +179,7 @@ Respond ONLY with valid JSON — no markdown, no explanation:
     id: `${sanitizedId}-${Date.now()}`,
     form: form.name,
     text: piece,
+    raw_scores: { style, motif, prec, conc, orig, total: totalScore },
     ...verdict,
   });
   await writeFile(path, JSON.stringify(ms, null, 2));
