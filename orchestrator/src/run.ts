@@ -270,7 +270,7 @@ Return ONLY a JSON object matching this exact schema:
     console.log(evaluation.feedback);
     console.log("==========================================");
 
-    await saveState({
+await saveState({
       timestamp: new Date().toISOString(),
       userId: USER_ID,
       form: formType,
@@ -287,6 +287,8 @@ Return ONLY a JSON object matching this exact schema:
   }
 }
 
-if (require.main === module) {
+import { fileURLToPath } from "node:url";
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main();
 }
