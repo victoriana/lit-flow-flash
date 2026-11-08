@@ -1,7 +1,4 @@
-import { writeFile } from "node:fs/promises";
-import { join } from "node:path";
-
-export const README_CONTENT = `# lit-flow-flash
+# lit-flow-flash
 
 Instead of letting generative content ad infinitum fragment your attention, you flow-read quality literature deliberately, then flash-write a short piece that echoes its style, borrows its motifs, and reinterprets them in a new context. You choose the form: an **Epigram** (15-25 words), a **Vignette** (30-50 words), or a **Drabble** (exactly 100 words). **lit-flow-flash** acts as an honest, fact-based coach that scores your prose against the passage you read, tracking clarity trends over time to help transform expansive, dreamlike, evocative reading into concise, precise, poignant writing.
 
