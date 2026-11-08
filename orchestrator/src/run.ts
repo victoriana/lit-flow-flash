@@ -17,33 +17,37 @@ const MODEL_NAME = process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
 type Form = { name: string; label: string; min: number; max: number };
 
 const FORMS: Record<string, Form> = {
-  "1": { name: "nano-fic", label: "nano-fic (15-25 words)",     min: 15,  max: 25  },
-  "2": { name: "drabble",  label: "drabble (exactly 100 words)", min: 100, max: 100 },
+  "1": { name: "epigram",  label: "Epigram  (15-25 words)", min: 15,  max: 25  },
+  "2": { name: "vignette", label: "Vignette (30-50 words)", min: 30,  max: 50  },
+  "3": { name: "drabble",  label: "Drabble  (exactly 100 words)", min: 100, max: 100 },
 };
 
 async function chooseForm(rl: ReturnType<typeof createInterface>): Promise<Form> {
   const env = process.env.FORM?.toLowerCase();
-  if (env === "nano-fic" || env === "nano") return FORMS["1"];
-  if (env === "drabble") return FORMS["2"];
+  if (env === "epigram" || env === "1") return FORMS["1"];
+  if (env === "vignette" || env === "2") return FORMS["2"];
+  if (env === "drabble" || env === "3") return FORMS["3"];
 
   while (true) {
     const a = (
       await rl.question(
-        "\nChoose your form:\n  1) nano-fic (15-25 words)\n  2) drabble  (exactly 100 words)\n> "
+        "\nChoose your form:\n  1) Epigram  (15-25 words)\n  2) Vignette (30-50 words)\n  3) Drabble  (exactly 100 words)\n> "
       )
     )
       .trim()
       .toLowerCase();
-    if (a === "1" || a === "nano-fic" || a === "nano") return FORMS["1"];
-    if (a === "2" || a === "drabble") return FORMS["2"];
-    console.log("Please enter 1 or 2.");
+
+    if (a === "1" || a === "epigram") return FORMS["1"];
+    if (a === "2" || a === "vignette") return FORMS["2"];
+    if (a === "3" || a === "drabble") return FORMS["3"];
+    console.log("Please enter 1, 2, or 3.");
   }
 }
 
-// Hyphenated words (e.g. "well-lit") count as one word.
+// Hyphenated words count as one word.
 const countWords = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
 
-// Helper to wrap long strings so they fit nicely inside console.table
+// Helper to wrap long strings so they fit cleanly inside console.table
 function wrapText(text: string, maxLineLength = 65): string {
   const words = text.split(" ");
   let lines: string[] = [];
@@ -66,7 +70,7 @@ function wrapText(text: string, maxLineLength = 65): string {
 async function main() {
   const rl = createInterface({ input, output });
 
-  // 0. Pick the form (nano-fic or drabble)
+  // 0. Pick the form (epigram, vignette, or drabble)
   const form = await chooseForm(rl);
   const MIN_WORDS = form.min;
   const MAX_WORDS = form.max;
@@ -105,7 +109,7 @@ async function main() {
     }
     piece = (
       await rl.question(
-        `Write your ${form.label} echoing the passage above:\n\n> `
+        `Write your ${form.name} (${target} words) echoing the passage above:\n\n> `
       )
     ).trim();
     wc = countWords(piece);
