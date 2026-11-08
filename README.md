@@ -117,7 +117,7 @@ It introduces an **agentic-adjacent constraint loop** where the application orch
 ### The 4 Advantages Over a Standard Chat Session
 
 1. **Zero-Context Blindness (The Closed-Book Trap)**  
-   In a normal chat, the AI shares your immediate history, letting you lean on safety nets. **lit-flow-flash** enforces a strict closed-book separation: you read the generated passage, and when you draft your response, you do so purely from memory and cognitive imprinting. You cannot peek back at the text, which forces your brain to internalize and hold rhythm, syntax, and motifs rather than parroting or copy-pasting.
+   In a normal chat, the AI shares your immediate context, encouraging passive reliance on safety nets. **lit-flow-flash** relies on user-enforced discipline: while the passage remains visible on screen, you commit to drafting purely from memory and cognitive imprinting without looking back. This deliberate restraint forces your brain to internalize rhythm, syntax, and motifs rather than relying on active glancing or copy-pasting.
 
 2. **Brutal, Non-Flattering Objective Scoring**  
    Standard assistants are hardwired to praise creative twists. This app acts as an uncompromising literary critic. It evaluates your piece on strict structural metrics (\`Epigram\`, \`Vignette\`, or \`Drabble\` bounds), computes a total score out of 100, and calls out lazy phrasing or verbatim plagiarism instantly.
