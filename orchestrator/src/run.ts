@@ -1,5 +1,3 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { GoogleGenAI } from "@google/genai";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
@@ -10,10 +8,8 @@ import { stdin as input, stdout as output } from "node:process";
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..", "..");
 
-const TEXT_ID = process.env.TEXT_ID ?? "gatsby";
-const CHUNKS = Number(process.env.CHUNKS ?? 3);
-const CHUNK_OFFSET = Number(process.env.CHUNK_OFFSET ?? 0);
 const USER_ID = process.env.USER_ID ?? "default";
+const MODEL_NAME = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
 
 // ---------------------------------------------------------------------------
 // Writing forms
@@ -21,12 +17,11 @@ const USER_ID = process.env.USER_ID ?? "default";
 type Form = { name: string; label: string; min: number; max: number };
 
 const FORMS: Record<string, Form> = {
-  "1": { name: "nano-fic", label: "nano-fic (15-25 words)",      min: 15,  max: 25  },
+  "1": { name: "nano-fic", label: "nano-fic (15-25 words)",     min: 15,  max: 25  },
   "2": { name: "drabble",  label: "drabble (exactly 100 words)", min: 100, max: 100 },
 };
 
 async function chooseForm(rl: ReturnType<typeof createInterface>): Promise<Form> {
-  // Optional override: FORM=nano-fic or FORM=drabble skips the prompt.
   const env = process.env.FORM?.toLowerCase();
   if (env === "nano-fic" || env === "nano") return FORMS["1"];
   if (env === "drabble") return FORMS["2"];
@@ -57,36 +52,28 @@ async function main() {
   const MAX_WORDS = form.max;
   const target = MIN_WORDS === MAX_WORDS ? `exactly ${MIN_WORDS}` : `${MIN_WORDS}-${MAX_WORDS}`;
 
-  // 1. Connect to the Go MCP server
-  const transport = new StdioClientTransport({
-    command: join(root, "bin", "mcp-server.exe"),
-    env: { ...process.env, LITFLOW_TEXTS: join(root, "datasets", "texts") },
+  // 1. Prompt user for ANY public domain novel or author
+  const rawInput = await rl.question(
+    '\nEnter public domain title/author [Default: The Mysteries of Udolpho by Ann Radcliffe]: '
+  );
+  const bookQuery = rawInput.trim() || "The Mysteries of Udolpho by Ann Radcliffe";
+
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+
+  // 2. Fetch/generate passage via Gemini
+  console.log(`\nGenerating passage for "${bookQuery}"...\n`);
+  const passagePrompt = `Generate a single compelling 250-300 word passage from or strictly in the authentic prose style and Gothic/literary voice of "${bookQuery}". Include vivid imagery, distinct tone, and central motifs characteristic of the work. Output ONLY the literary passage text without any conversational preamble, titles, or closing commentary.`;
+
+  const passageGen = await ai.models.generateContent({
+    model: MODEL_NAME,
+    contents: passagePrompt,
   });
-  const mcp = new Client({ name: "orchestrator", version: "0.1.0" });
-  await mcp.connect(transport);
+  const corpus = passageGen.text ? passageGen.text.trim() : "";
 
-  // 2. Read chunks via books.get_chunk (starting at CHUNK_OFFSET)
-  let corpus = "";
-  for (let i = 0; i < CHUNKS; i++) {
-    const res: any = await mcp.callTool({
-      name: "books.get_chunk",
-      arguments: { text_id: TEXT_ID, chunk_idx: i + CHUNK_OFFSET },
-    });
-    const chunk = res.content?.[0]?.text ?? "";
-    if (chunk.includes("[end of text]")) break;
-    corpus += chunk + "\n\n";
-  }
-
-  // 3. Read prior milestones via user.read_history
-  const hist: any = await mcp.callTool({
-    name: "user.read_history",
-    arguments: { user_id: USER_ID },
-  });
-
-  console.log(`\n=== READ: ${TEXT_ID} (chunks ${CHUNK_OFFSET}–${CHUNK_OFFSET + CHUNKS - 1}) ===\n`);
+  console.log(`\n=== READ: ${bookQuery} ===\n`);
   console.log(corpus);
 
-  // 4. YOU write the piece — enforce word bounds for the chosen form
+  // 3. User writes submission
   console.log("\n=== WRITE ===\n");
   let piece = "";
   let wc = 0;
@@ -105,10 +92,10 @@ async function main() {
   }
   rl.close();
 
-  // 5. Gemini judges your piece
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+  // 4. Gemini evaluation
+  console.log("\nEvaluating your submission...\n");
   const judgePrompt = `You are a strict literary evaluator. Score this piece
-against the source passages on style alignment, motif reuse, precision, concision, originality.
+against the source passage on style alignment, motif reuse, precision, concision, originality.
 Score each metric on a 0-10 scale.
 
 The writer chose the "${form.name}" form, which requires ${target} words. This submission is ${wc} words.
@@ -117,7 +104,7 @@ Judge concision and precision relative to that form's length, and penalize if th
 ORIGINALITY means: does the piece transform its influences into something fresh,
 rather than copying phrases verbatim or producing generic filler?
 
-SOURCE PASSAGES:
+SOURCE PASSAGE:
 ${corpus}
 
 PIECE (${form.name}):
@@ -127,7 +114,7 @@ Respond ONLY with valid JSON — no markdown, no explanation:
 {"word_count": ${wc}, "style_alignment": 0.0, "motif_reuse": 0.0, "precision": 0.0, "concision": 0.0, "originality": 0.0, "notes": "one sentence"}`;
 
   const gen = await ai.models.generateContent({
-    model: "gemini-flash-latest",
+    model: MODEL_NAME,
     contents: judgePrompt,
   });
   const raw = gen.text ?? "";
@@ -137,7 +124,7 @@ Respond ONLY with valid JSON — no markdown, no explanation:
   console.log("\n=== JUDGMENT ===");
   console.table(verdict);
 
-  // 6. Save to state
+  // 5. Save session state
   const stateDir = join(root, ".state");
   await mkdir(stateDir, { recursive: true });
   const path = join(stateDir, `${USER_ID}.json`);
@@ -145,16 +132,16 @@ Respond ONLY with valid JSON — no markdown, no explanation:
   try {
     ms = JSON.parse(await readFile(path, "utf8"));
   } catch {}
+
+  const sanitizedId = bookQuery.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   ms.push({
-    id: `${TEXT_ID}-${Date.now()}`,
+    id: `${sanitizedId}-${Date.now()}`,
     form: form.name,
     text: piece,
     ...verdict,
   });
   await writeFile(path, JSON.stringify(ms, null, 2));
   console.log(`\nsaved -> ${path}`);
-
-  await mcp.close();
 }
 
 main().catch((e) => {
