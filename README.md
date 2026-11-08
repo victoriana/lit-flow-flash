@@ -110,18 +110,8 @@ All progress is saved to \`.state/<USER_ID>.json\` with full metric breakdowns, 
 
 ## 💡 What Makes This Special
 
-Standard AI chat interfaces are built to be fluid, accommodating, and endlessly polite—they want to please you, keep the conversation moving, and forgive your mistakes. **lit-flow-flash** strips away that conversational cushion and replaces it with **programmatic friction**.
+Standard AI chat interfaces are built to be fluid, accommodating, and endlessly polite—they want to please you, keep the conversation moving, and forgive your mistakes. lit-flow-flash strips away that conversational cushion and replaces it with programmatic friction.
 
-Instead of acting as a passive chat prompt, it operates as an **automated constraint loop**: generating targeted literary passages, enforcing rigid word-count boundaries before evaluation, scoring your output against objective metrics, and persisting your long-term progression.
+Instead of acting as a passive chat prompt, it operates as an automated loop: generating targeted literary passages, enforcing rigid word-count boundaries before evaluation, scoring your output against objective metrics, and persisting your progression locally over time.
 
-### The 2 Core Systems You Can't Get in a Standard Chat
-
-1. **Programmatic Word-Count Boundaries & Strict Evaluation**  
-   An ordinary chat model will happily evaluate a draft regardless of length, often offering unhelpful praise. **lit-flow-flash** acts as an unyielding structural gatekeeper: it strictly validates your word counts locally before scoring, evaluates concision relative to your chosen form (Epigram, Vignette, or Drabble), computes a total score out of 100, and explicitly penalizes derivative phrasing or verbatim copying.
-
-2. **Local State Persistence & Longitudinal Tracking**  
-   Conversations in standard AI interfaces disappear into unstructured chat history. Every session in **lit-flow-flash** automatically appends to a local state repository (`.state/<USER_ID>.json`). Over weeks and months, this accumulates a structured, machine-readable dataset of your score trends across style alignment, motif reuse, precision, concision, and originality.
-
-### A Cognitive Gym for Style Transposition
-
-If your goal is to master literary works so deeply that their cadence alters your natural speech and expression, this app functions as a cognitive gym. Just like lifting weights creates micro-tears that force muscle growth, combining hard structural constraints with objective scoring forces your brain to distill expansive, dreamlike reading into sharp, precise, and resonant prose.
+If your goal is to master literary works so deeply that their cadence alters your natural speech and expression, this app functions as a cognitive gym. Just like lifting weights creates micro-tears that force muscle growth, the combination of strict word boundaries and harsh scoring forces your brain to distill expansive, dreamlike reading into sharp, precise, and resonant prose.
