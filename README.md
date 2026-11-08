@@ -154,3 +154,29 @@ All entries are saved to `.state/<USER_ID>.json` (by default `.state/default.jso
 - Public-domain sources only (e.g., Fitzgerald, Radcliffe).
 - `.state/` is not committed — it contains personal practice data.
 
+---
+
+## 💡 What Makes This Special
+
+Standard AI chat interfaces are built to be fluid, accommodating, and endlessly polite—they want to please you, keep the conversation moving, and forgive your mistakes. **lit-flow-flash** strips away that conversational cushion and replaces it with **rigorous, unyielding friction**.
+
+It introduces an **agentic-adjacent constraint loop** where the application orchestrates the process—generating dynamic prompts, enforcing strict word boundaries, evaluating your output against hard criteria, and tracking your long-term progression—rather than just waiting passively for your next prompt.
+
+### The 4 Advantages Over a Standard Chat Session
+
+1. **Zero-Context Blindness (The Closed-Book Trap)**  
+   In a normal chat, the AI shares your immediate history, letting you lean on safety nets. **lit-flow-flash** enforces a strict closed-book separation: you read the generated passage, and when you draft your response, you do so purely from memory and cognitive imprinting. You cannot peek back at the text, which forces your brain to internalize and hold rhythm, syntax, and motifs rather than parroting or copy-pasting.
+
+2. **Brutal, Non-Flattering Objective Scoring**  
+   Standard assistants are hardwired to praise creative twists. This app acts as an uncompromising literary critic. It evaluates your piece on strict structural metrics (`nano-fic` word bounds or exact drabble lengths), computes a total score out of 100, and calls out lazy phrasing or verbatim plagiarism instantly.
+
+3. **Longitudinal Tracking & Accumulating State**  
+   Every session is saved locally to `.state/default.json`. Over weeks and months, this builds an unchangeable historical record of your clarity and stylistic trends, turning isolated writing exercises into a quantifiable mastery loop across authors like Ann Radcliffe or F. Scott Fitzgerald.
+
+4. **Habit Architecture & Flow State Protection**  
+   A web browser tab is riddled with distractions. Running a dedicated terminal tool (`npm start`) creates an intentional, ritualized loop:  
+   $$\text{Choose Form} \longrightarrow \text{Generate Passage} \longrightarrow \text{Read} \longrightarrow \text{Write Under Constraints} \longrightarrow \text{Face Judgment}$$
+
+### A Cognitive Gym for Style Transposition
+
+If your goal is to master literary works so deeply that their cadence alters your natural speech and expression, this app functions as a cognitive gym. Just like lifting weights creates micro-tears that force muscle growth, the combination of strict word boundaries and harsh scoring forces your brain to distill expansive, dreamlike reading into sharp, precise, and resonant prose.
