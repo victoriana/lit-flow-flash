@@ -1,158 +1,113 @@
-# lit-flow-flash
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
 
-Instead of letting generative content ad infinitum fragment your attention, you flow-read quality literature deliberately for thirty minutes, then flash-write a short piece that echoes its style, borrows its motifs, and reinterprets them in a new context. You choose the form: a **nano-fic** (15-25 words) or a **drabble** (exactly 100 words). **lit-flow-flash** acts as an honest, fact-based coach that scores your prose against the passage you read, tracking clarity trends over time to help transform expansive, dreamlike, evocative reading into concise, precise, poignant writing.
+export const README_CONTENT = `# lit-flow-flash
+
+Instead of letting generative content ad infinitum fragment your attention, you flow-read quality literature deliberately, then flash-write a short piece that echoes its style, borrows its motifs, and reinterprets them in a new context. You choose the form: an **Epigram** (15-25 words), a **Vignette** (30-50 words), or a **Drabble** (exactly 100 words). **lit-flow-flash** acts as an honest, fact-based coach that scores your prose against the passage you read, tracking clarity trends over time to help transform expansive, dreamlike, evocative reading into concise, precise, poignant writing.
 
 ## Why it works
 
 **lit-flow-flash** joins focused reading and deliberate writing into a single practice, and measures the result.
 
-The thirty-minute flow-read is deliberate immersion in public domain prose that has survived over a century of academic and literary scrutiny. You anchor your attention to a specific passage — the one you yourself marked — rather than an infinite feed.
+The flow-read is deliberate immersion in public-domain prose or authentic stylistic generation from works that have survived over a century of scrutiny. You anchor your attention to a specific passage—either prompted by author or retrieved from your text corpus—rather than an infinite feed.
 
-The subsequent piece forces distillation. A nano-fic leaves room for a single image; a drabble leaves room for a turn. Either way, no word is filler. Every word must earn its place by echoing the tone of what you read, by carrying a motif forward, by reinterpreting a concept into something new. This is not a summary. It is a creative transposition.
+The subsequent piece forces distillation:
+- An **Epigram** leaves room for a single focused observation delivered in a single breath.
+- A **Vignette** leaves room for a short atmospheric scene built across two to four fluid sentences.
+- A **Drabble** demands a complete miniature story with sustained prose and a distinct turn.
 
-The coach closes the loop with fact-based feedback: how well did your piece match the passage's style? Which motifs did you recall? Did your reinterpretation feel fresh or derivative? Over time, you see your own clarity trends — whether you are getting better at holding, distilling, and transforming. That feedback loop turns meditative absorption into active cognizance.
+No word is filler. Every word must earn its place by echoing the tone of what you read, by carrying a motif forward, and by reinterpreting a concept into something new. This is not a summary; it is a creative transposition.
+
+The coach closes the loop with strict, fact-based feedback: how well did your piece match the author's style? Which motifs did you recall? Did your reinterpretation feel fresh or derivative? Over time, you see your clarity trends—whether you are getting better at holding, distilling, and transforming syntax into spoken or written muscle memory.
 
 ## How it works
 
 The app follows a simple three-stage loop:
 
-1. **Read (Un-augmented)** — The user selects a chunk from a public-domain literary work and reads it for about 30 minutes at their own pace (user-enforced; the app does not time it). The user then specifies the start and end sentences and the title of the work, so the engine knows exactly which block of public-domain text to use as the evaluation reference.
-2. **Write (Closed-book)** — Immediately after reading, the user chooses a form and writes a piece entirely from memory, with zero assistance from generative AI or text tools. The piece must echo the author's style, reinterpret specific motifs into a novel context, and adhere to the strict word count of the chosen form (see below).
-3. **Evaluate (Agentic-AI)** — The agent scores the piece against the marked passage for style alignment, motif recall, and creative transposition, then delivers encouraging, fact-based feedback.
+1. **Select & Generate/Read** — The user picks a form (**Epigram**, **Vignette**, or **Drabble**) and specifies any public domain work or author (defaulting to *The Mysteries of Udolpho by Ann Radcliffe*). Gemini fetches or generates an authentic 250–300 word passage in that distinct voice.
+2. **Write (Closed-book)** — Immediately after reading, the user drafts a piece entirely from memory with zero assistance from text tools. The submission must echo the author's style, reinterpret motifs, and strictly satisfy the word count bounds of the chosen form.
+3. **Evaluate (Agentic-AI)** — Gemini scores the piece across five metrics (0–10 each), computes a total score out of 100, formats the feedback cleanly with line-wrapped notes, and saves the entry to \`.state/<USER_ID>.json\`.
 
-The orchestrator enforces the loop sequentially (a future state machine will make this explicit): it asks for your form, fetches the passage, waits for your piece, then scores and saves. Order is structural — each step completes before the next begins.
+The orchestrator enforces the loop sequentially: it asks for your form, generates/presents the passage, waits for your constrained entry, scores, and saves.
 
 ## Forms
 
-At startup the app asks which form you want to write:
+At startup, the app prompts you to choose your form:
 
-| Form       | Length            | Notes                                                     |
-|------------|-------------------|-----------------------------------------------------------|
-| `nano-fic` | 15-25 words       | A single image or turn; hint-fiction scale                |
-| `drabble`  | exactly 100 words | A complete miniature story with room for a turn           |
+| Form | Word Count | Purpose & Conversational Equivalent |
+|---|---|---|
+| **Epigram** | 15–25 words | Single focused observation; 1 spoken breath/remark |
+| **Vignette** | 30–50 words | Short atmospheric scene; 2–4 fluid sentences |
+| **Drabble** | Exactly 100 words | Sustained prose; complete miniature story |
 
-Word counts are enforced: if your piece is outside the allowed range, you are asked to try again. Hyphenated words (e.g. "well-lit") count as one word. The form you chose is passed to the judge, so concision and precision are scored relative to that form's length, and it is saved with each entry so you can compare trends within a form.
+Word counts are strictly enforced by the CLI before submission to the evaluator. Hyphenated words (e.g., "well-lit") count as one word. The form name and target word count are passed directly to the judge so concision and precision are evaluated relative to that form's specific constraints.
 
-## Languages
+## Architecture & Tech Stack
 
-| Language   | Used for                                                                | Key files                                                    |
-|------------|-------------------------------------------------------------------------|--------------------------------------------------------------|
-| TypeScript | Orchestrator (form selection, turn loop, Gemini judge, state) and eval harness runner | `orchestrator/src/run.ts`, `eval-harness/run-eval.ts`, `eval-harness/src/metrics.ts` |
-| Go         | MCP server (reading tools, history) and utility module                  | `mcp-server/main.go`, `app/main.go`                          |
-| Python     | Stylistic scoring engine for the eval harness                           | `eval-harness/engine/evaluator.py`                           |
+| Component | Runtime | Role | Key Files |
+|---|---|---|---|
+| **Orchestrator** | TypeScript (\`tsx\`) | Interactive CLI, form selection, direct Gemini API integration, score formatting, and state saving | \`orchestrator/src/run.ts\` |
+| **MCP Server** | Go | MCP service layer exposing reading tools and history | \`mcp-server/main.go\`, \`app/main.go\` |
+| **Eval Harness** | TypeScript + Python | Legacy batch runner for gold-standard validation | \`eval-harness/run-eval.ts\`, \`eval-harness/engine/evaluator.py\` |
 
-## Monorepo layout
-
-| Path          | Runtime             | Role                                                             |
-|---------------|---------------------|------------------------------------------------------------------|
-| orchestrator/ | TypeScript          | Main app: MCP client, Gemini judge, state management             |
-| mcp-server/   | Go                  | MCP service layer exposing books.get_chunk and user.read_history |
-| eval-harness/ | TypeScript + Python | Legacy batch runner for gold-standard validation                 |
-| datasets/     | JSON / text         | Text corpus and gold-standard records                            |
-| app/          | Go                  | Utility module (zero external dependencies)                      |
-
-## Quick start
+## Quick Start
 
 ### Prerequisites
 
-- Go 1.27+
-- Node.js 18+ with npm
-- Google API key (from [Google AI Studio](https://aistudio.google.com))
+- Node.js 18+ with \`npm\` (and \`tsx\`)
+- Go 1.22+ (optional, if running the Go MCP server)
+- Google API key (from Google AI Studio)
 
-Step 1 — build the Go MCP server:
+### Installation & Run
 
+1. Clone the repository and install dependencies:
+```bash
+cd orchestrator
+npm install
+ ```
+2. Set your Google Gemini API key:
+```bash
+export GEMINI_API_KEY="your_api_key_here"
+
+(On Windows PowerShell: $env:GEMINI_API_KEY="your_api_key_here")
 ```
-cd mcp-server && go build -o ../bin/mcp-server.exe . && cd ..
-```
-
-Step 2 — install the orchestrator:
-
-```
-cd orchestrator && npm install && cd ..
-```
-
-Step 3 — set your API key:
-
-```
-export GEMINI_API_KEY=your_key_here
-```
-
-Step 4 — add reading material to `datasets/texts/`:
-
-```
-curl -o datasets/texts/gatsby.txt "https://www.gutenberg.org/files/64317/64317-0.txt"
-```
-
-Step 5 — run (you will be asked to choose nano-fic or drabble):
-
-```
-cd orchestrator && npm start
-```
-
-See the **Configuration** table below for `FORM`, `TEXT_ID`, `CHUNKS`, etc.
-
-## Configuration
-
-| Variable       | Default   | Description                                                                 |
-|----------------|-----------|-----------------------------------------------------------------------------|
-| `FORM`         | (prompt)  | `nano-fic` or `drabble`. If set, skips the form prompt                      |
-| `TEXT_ID`      | `gatsby`  | Filename (without `.txt`) in `datasets/texts/`                              |
-| `CHUNKS`       | `3`       | Number of chunks to read                                                    |
-| `CHUNK_OFFSET` | `0`       | Start reading from this chunk index                                         |
-| `USER_ID`      | `default` | Session identifier for `.state/`                                            |
-
-Examples:
-
-```
-# Choose the form interactively
+3. Start the application:
+```bash
 npm start
-
-# Nano-fic practice on the first chunk
-FORM=nano-fic TEXT_ID=gatsby CHUNKS=1 npm start
-
-# Read from the middle of the book and write a full drabble
-FORM=drabble TEXT_ID=gatsby CHUNKS=2 CHUNK_OFFSET=5 npm start
 ```
+## Configuration
+  
+You can bypass CLI prompts or target specific sessions using environment variables:
 
-## Scoring
+| Variable | Default | Description |
+|---|---|---|
+| \`GEMINI_API_KEY\` | *(required)* | Google AI Studio API key |
+| \`GEMINI_MODEL\` | \`gemini-3.8-flash\` | Gemini model used for generation and evaluation |
+| \`FORM\` | *(prompt)* | Bypasses menu prompt (\`epigram\`, \`vignette\`, or \`drabble\`) |
+| \`USER_ID\` | \`default\` | Session identifier for state tracking (\`.state/<USER_ID>.json\`) |
 
-Gemini evaluates each piece on five metrics (0-10 scale):
+### Example CLI Shortcuts
 
-| Metric            | Description                                                    |
-|-------------------|----------------------------------------------------------------|
-| `style_alignment` | How closely the prose matches the source author's voice        |
-| `motif_reuse`     | Whether you reused images, themes, or symbols from the passage |
-| `precision`       | Whether each word is exact and purposeful                      |
-| `concision`       | How tight the writing is — no wasted words                     |
-| `originality`     | Whether the piece transforms influences into something fresh   |
+FORM=epigram npm start
 
-Each entry includes `notes` with specific, actionable feedback and `word_count`. Concision and precision are judged relative to the form you chose.
+FORM=vignette USER_ID=alex npm start
 
-All entries are saved to `.state/<USER_ID>.json` (by default `.state/default.json`), each tagged with its `form`.
+## Scoring & State
 
-## Environment Variables
+Gemini evaluates each entry on five core metrics (0–10 scale):
 
-### Orchestrator
+| Metric | Description |
+|---|---|
+| \`style_alignment\` | How closely your prose matches the source author's voice and cadence |
+| \`motif_reuse\` | Whether you drew upon symbols, images, or atmospheric cues from the passage |
+| \`precision\` | Exactness of word choice and phrasing |
+| \`concision\` | Tightness of writing with zero wasted filler relative to form length |
+| \`originality\` | How fresh your transformation is (heavily penalizes verbatim copying) |
 
-- `GEMINI_API_KEY` — Google AI Studio API key (required)
-- `FORM` — `nano-fic` or `drabble` (optional; skips the prompt)
-- `TEXT_ID` — Filename in `datasets/texts/` (default: gatsby)
-- `CHUNKS` — Number of chunks (default: 3)
-- `CHUNK_OFFSET` — Starting chunk index (default: 0)
-- `USER_ID` — Session identifier for `.state/` (default: default)
+**Total Score calculation:**  
+Total Score = (Style + Motif + Precision + Concision + Originality) x 2 = Score out of 100
 
-### MCP Server
-
-- `LITFLOW_TEXTS` — Path to text corpus (default: ../datasets/texts)
-- `LITFLOW_STATE_DIR` — Where reading-history JSON is stored (default: ../.state)
-
-## Conventions
-
-- The orchestrator (`orchestrator/`) speaks MCP as a client to `mcp-server/` and calls Gemini for judging.
-- `eval-harness/` is for validating against pre-made examples; it does not score user entries.
-- `app/` is a dependency-free Go module for future utility code.
-- Public-domain sources only (e.g., Fitzgerald, Radcliffe).
-- `.state/` is not committed — it contains personal practice data.
+All progress is saved to \`.state/<USER_ID>.json\` with full metric breakdowns, timestamps, and target word counts so you can track clarity and style trends over time.
 
 ---
 
@@ -168,15 +123,22 @@ It introduces an **agentic-adjacent constraint loop** where the application orch
    In a normal chat, the AI shares your immediate history, letting you lean on safety nets. **lit-flow-flash** enforces a strict closed-book separation: you read the generated passage, and when you draft your response, you do so purely from memory and cognitive imprinting. You cannot peek back at the text, which forces your brain to internalize and hold rhythm, syntax, and motifs rather than parroting or copy-pasting.
 
 2. **Brutal, Non-Flattering Objective Scoring**  
-   Standard assistants are hardwired to praise creative twists. This app acts as an uncompromising literary critic. It evaluates your piece on strict structural metrics (`nano-fic` word bounds or exact drabble lengths), computes a total score out of 100, and calls out lazy phrasing or verbatim plagiarism instantly.
+   Standard assistants are hardwired to praise creative twists. This app acts as an uncompromising literary critic. It evaluates your piece on strict structural metrics (\`Epigram\`, \`Vignette\`, or \`Drabble\` bounds), computes a total score out of 100, and calls out lazy phrasing or verbatim plagiarism instantly.
 
 3. **Longitudinal Tracking & Accumulating State**  
-   Every session is saved locally to `.state/default.json`. Over weeks and months, this builds an unchangeable historical record of your clarity and stylistic trends, turning isolated writing exercises into a quantifiable mastery loop across authors like Ann Radcliffe or F. Scott Fitzgerald.
+   Every session is saved locally to \`.state/default.json\`. Over weeks and months, this builds an unchangeable historical record of your clarity and stylistic trends, turning isolated writing exercises into a quantifiable mastery loop across authors like Ann Radcliffe or F. Scott Fitzgerald.
 
 4. **Habit Architecture & Flow State Protection**  
-   A web browser tab is riddled with distractions. Running a dedicated terminal tool (`npm start`) creates an intentional, ritualized loop:  
-   $$\text{Choose Form} \longrightarrow \text{Generate Passage} \longrightarrow \text{Read} \longrightarrow \text{Write Under Constraints} \longrightarrow \text{Face Judgment}$$
+   A web browser tab is riddled with distractions. Running a dedicated terminal tool (\`npm start\`) creates an intentional, ritualized loop:  
+   Choose Form -> Generate Passage -> Read -> Write Under Constraints -> Face Judgment
 
 ### A Cognitive Gym for Style Transposition
 
 If your goal is to master literary works so deeply that their cadence alters your natural speech and expression, this app functions as a cognitive gym. Just like lifting weights creates micro-tears that force muscle growth, the combination of strict word boundaries and harsh scoring forces your brain to distill expansive, dreamlike reading into sharp, precise, and resonant prose.
+`;
+
+export async function writeReadme(targetPath: string = "../README.md") {
+  await writeFile(targetPath, README_CONTENT, "utf-8");
+  console.log(`README.md written successfully to ${targetPath}`);
+}
+
