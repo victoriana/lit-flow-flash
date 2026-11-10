@@ -54,7 +54,7 @@ Feedback:
 > things') with sharp, evocative diction that captures Gothic suspense—for instance: 'In
 > midnight's solitary stillness, the silent lifting of an iron latch commands the trembling soul.'
 
-## What This Demonstrates
+## What This Does
 
 - **Read phase:** Go MCP server fetches and exposes the source passage.
 - **Write phase:** Human drafts against the internalized style (not visible text — closed-book).
