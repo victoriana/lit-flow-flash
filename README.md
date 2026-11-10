@@ -17,15 +17,21 @@ No word is filler. Every word must earn its place by echoing the tone of what yo
 
 The coach closes the loop with strict, fact-based feedback: how well did your piece match the author's style? Which motifs did you recall? Did your reinterpretation feel fresh or derivative? Over time, you see your clarity trends—whether you are getting better at holding, distilling, and transforming syntax into spoken or written muscle memory.
 
+## Try it yourself
+
+See [sample-session.md](sample-session.md) for a full read→write→judge transcript — a deliberately shoddy epigram scored against Ann Radcliffe.
+
+---
 ## How it works
 
 The app follows a simple three-stage loop:
 
 1. **Select & Generate/Read** — The user picks a form (**Epigram**, **Vignette**, or **Drabble**) and specifies any public domain work or author (defaulting to *The Mysteries of Udolpho by Ann Radcliffe*). Gemini fetches or generates an authentic 250–300 word passage in that distinct voice.
 2. **Write (Closed-book)** — Immediately after reading, the user drafts a piece entirely from memory with zero assistance from text tools. The submission must echo the author's style, reinterpret motifs, and strictly satisfy the word count bounds of the chosen form.
-3. **Evaluate (Agentic-AI)** — Gemini scores the piece across five metrics (0–10 each), computes a total score out of 100, formats the feedback cleanly with line-wrapped notes, and saves the entry to \`.state/<USER_ID>.json\`.
+3. **Evaluate (Agentic-AI)** — Gemini scores the piece across five metrics (0–10 each), computes a total score out of 100, formats the feedback cleanly with line-wrapped notes, and saves the entry to \`.state/<USER_ID>.json\`. 
 
 The orchestrator enforces the loop sequentially: it asks for your form, generates/presents the passage, waits for your constrained entry, scores, and saves.
+
 
 ## Forms
 
