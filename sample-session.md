@@ -12,7 +12,7 @@ five rubric dimensions.
 
 > sometimes sitting in solitude in the still of the night small things changing brings one chills.
 
-## Passage Read & Internalized (closed-book)
+## Passage Read & Internalized (closed-book, and before user does above submission)
 
 > The evening gloom deepened swiftly over the wild solitude of the Apennines, whose jagged
 > pinnacles now faded into an indistinct and awful majesty. Adeline sat alone by the narrow
