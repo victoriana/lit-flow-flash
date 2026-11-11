@@ -406,10 +406,10 @@ export async function main() {
     if (useReal) {
       // --- Choose canon ---
       const canonAnswer = (
-        await rl.question("Canon — [g] Goth Lit (Radcliffe) / [l] Glam Lit (Fitzgerald) [default g]: ")
-      ).trim().toLowerCase();
-      const canonId: CanonId = canonAnswer.startsWith("l") ? "glam" : "goth";
+        await rl.question("Canon — [f] Glam Lit (Fitzgerald) / [r] Goth Lit (Radcliffe) [default f]: ")).trim().toLowerCase();
+      const canonId: CanonId = canonAnswer.startsWith("r") ? "goth" : "glam";
 
+      
       // --- Show the 3 titles from that canon (for reference) ---
       const pool = CANON[canonId].works;
       console.log(`\n${CANON[canonId].label}:`);
