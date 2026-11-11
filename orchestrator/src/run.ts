@@ -259,39 +259,43 @@ function sliceSpan(prose: string, openFragment: string, closeFragment: string): 
   const closeIdx = normalized.indexOf(close);
 
   if (openIdx === -1 || closeIdx === -1 || openIdx >= closeIdx) {
-    return ""; // Should not happen, validated earlier
+    return "";
   }
 
-  // Find sentence boundaries
-  const sentences = splitSentences(prose);
-  let sentenceIdx = 0;
-  let currentPos = 0;
+  // Slice from the start of the opening fragment to the end of the closing fragment
+  // Use the normalized index to locate in the raw text by finding the same position
+  const rawStart = prose.indexOf(openFragment.replace(/\s+/g, " ").trim(), Math.max(0, openIdx - 50));
+  const rawEnd = prose.indexOf(closeFragment.replace(/\s+/g, " ").trim(), Math.max(0, closeIdx - 50));
 
-  // Find which sentence contains the opening
-  for (let i = 0; i < sentences.length; i++) {
-    const sentNorm = normalizeForMatch(sentences[i]);
-    if (normalized.indexOf(open) >= currentPos && normalized.indexOf(open) < currentPos + sentNorm.length) {
-      sentenceIdx = i;
-      break;
-    }
-    currentPos += sentNorm.length + 1; // +1 for space
+  // If exact match fails in raw text, do a best-effort: use normalized lengths as offset
+  const openLen = normalizeForMatch(openFragment).length;
+  const closeLen = normalizeForMatch(closeFragment).length;
+
+  // Find the actual position in raw prose by searching around the normalized index
+  let actualStart = openIdx;
+  let actualEnd = closeIdx + closeLen;
+
+  // Adjust for normalization (lowercase + collapsed spaces) by finding the closest match
+  // Simplest reliable approach: search for the fragment in the raw text
+  const openSearch = normalizeForMatch(prose.slice(0, openIdx + openLen + 20));
+  const rawOpen = prose.slice(0, openIdx + openLen + 20);
+  const rawClose = prose.slice(0, closeIdx + closeLen + 20);
+
+  // Use a more robust approach: find the fragment in the raw text
+  const rawOpenFragment = openFragment.trim().replace(/\s+/g, "\\s+");
+  const rawCloseFragment = closeFragment.trim().replace(/\s+/g, "\\s+");
+
+  const openMatch = prose.match(new RegExp(rawOpenFragment, "i"));
+  const closeMatch = prose.match(new RegExp(rawCloseFragment, "i"));
+
+  if (!openMatch || !closeMatch || openMatch.index === undefined || closeMatch.index === undefined) {
+    return "";
   }
 
-  // Find which sentence contains the closing
-  let endIdx = sentenceIdx;
-  currentPos = 0;
-  for (let i = 0; i < sentences.length; i++) {
-    const sentNorm = normalizeForMatch(sentences[i]);
-    if (normalized.indexOf(close) >= currentPos && normalized.indexOf(close) < currentPos + sentNorm.length) {
-      endIdx = i;
-      break;
-    }
-    currentPos += sentNorm.length + 1;
-  }
+  const start = openMatch.index;
+  const end = closeMatch.index + closeMatch[0].length;
 
-  // Join sentences between start and end
-  const sliced = sentences.slice(sentenceIdx, endIdx + 1).join(" ");
-  return sliced.replace(/\s+/g, " ").trim();
+  return prose.slice(start, end).replace(/\s+/g, " ").trim();
 }
 
 // ---------------------------------------------------------------------------
