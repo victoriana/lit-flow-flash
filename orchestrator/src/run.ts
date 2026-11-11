@@ -27,7 +27,7 @@ interface CanonWork {
   title: string;
   author: string;
   year: number;
-  gutenbergId: number; // Project Gutenberg US ebook number
+  gutenbergId: number;
 }
 
 /** Closed canon: ONLY these six works may ever be sampled. All PD in the US. */
@@ -96,6 +96,8 @@ interface SavedSession {
   form: FormType;
   authorOrWork: string;
   passage: string;
+  openingSentence: string;
+  closingSentence: string;
   userSubmission: string;
   wordCount: number;
   evaluation: EvaluationScore;
@@ -103,9 +105,6 @@ interface SavedSession {
   gutenbergId?: number;
 }
 
-/**
- * Executes a API call with exponential backoff retries and model cascade fallback.
- */
 async function generateResilientContent(
   ai: GoogleGenAI,
   params: Omit<Parameters<typeof ai.models.generateContent>[0], "model">,
@@ -142,9 +141,8 @@ async function generateResilientContent(
             `\n[503 Busy] ${model} unavailable. Retrying in ${delayMs / 1000}s...`
           );
           await new Promise((resolve) => setTimeout(resolve, delayMs));
-          delayMs *= 2; // Exponential backoff
+          delayMs *= 2;
         } else {
-          // Cascade to next model in list
           break;
         }
       }
@@ -155,17 +153,13 @@ async function generateResilientContent(
 }
 
 function countWords(text: string): number {
-  return text
-    .trim()
-    .split(/\s+/)
-    .filter((w) => w.length > 0).length;
+  return text.trim().split(/\s+/).filter((w) => w.length > 0).length;
 }
 
 function slug(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-/** Cryptographically-strong pick — true randomness, no Math.random drift. */
 function securePick<T>(arr: readonly T[]): T {
   const buf = new Uint32Array(1);
   crypto.getRandomValues(buf);
@@ -181,16 +175,12 @@ async function fetchWithTimeout(url: string, ms = 30_000): Promise<string> {
   return res.text();
 }
 
-/** Strip PG boilerplate, HTML tags/entities, hard-wrapped lines, footnote markers. */
 function cleanProse(raw: string): string {
   let t = raw;
-
-  // Drop anything after the license footer.
   t = t.split(/\*\*\*\s*END OF THE PROJECT GUTENBERG/i)[0];
   t = t.split(/\*\*\*\s*END OF THIS PROJECT GUTENBERG/i)[0];
 
   if (/<html[\s>]/i.test(t)) {
-    // HTML source: keep <body>, kill scripts/styles/tags/entities.
     t = t.slice(t.search(/<body[\s>]/i));
     t = t.replace(/<script[\s\S]*?<\/script>/gi, " ");
     t = t.replace(/<style[\s\S]*?<\/style>/gi, " ");
@@ -203,17 +193,13 @@ function cleanProse(raw: string): string {
       .replace(/&#8212;|&mdash;/g, "—").replace(/&#8230;|&hellip;/g, "…")
       .replace(/&nbsp;/g, " ").replace(/&#\d+;/g, " ");
   } else {
-    // Plain text: start at the START marker to skip front matter/preface.
     const start = t.search(/\*\*\*\s*START OF THE PROJECT GUTENBERG/i);
     if (start !== -1) t = t.slice(start);
     t = t.replace(/^\s*\*\*\*[^\n]*\*\*\*\s*$/gm, " ");
   }
 
-  // De-hyphenate line-break splits, then unwrap hard wraps into paragraphs.
   t = t.replace(/(\w)-\r?\n(\w)/g, "$1$2");
   t = t.replace(/\s*\r?\n\s*/g, (m) => (/\n\s*\n/.test(m) ? "\n\n" : " "));
-
-  // Drop footnote digits glued to words, collapse whitespace.
   t = t.replace(/([a-z])\d{1,3}\b/g, "$1");
   t = t.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
   return t;
@@ -221,7 +207,6 @@ function cleanProse(raw: string): string {
 
 async function fetchRawText(work: CanonWork): Promise<string> {
   const id = work.gutenbergId;
-  // Prefer the stable cache path; fall back to the canonical redirect.
   try {
     return await fetchWithTimeout(`${PG_MIRROR}/cache/epub/${id}/pg${id}.txt.utf-8`);
   } catch {
@@ -229,19 +214,16 @@ async function fetchRawText(work: CanonWork): Promise<string> {
   }
 }
 
-/** Download once, cache cleaned prose forever under .corpus/cache/. */
 async function loadCorpus(work: CanonWork): Promise<string> {
   const dir = path.join(CORPUS_DIR, "cache");
   const rawFile   = path.join(dir, `${slug(work.title)}.raw.txt`);
   const cleanFile = path.join(dir, `${slug(work.title)}.clean.txt`);
 
-  // Fast path: already cleaned.
   try {
     const cached = await fs.readFile(cleanFile, "utf-8");
     if (cached.trim().length > 5000) return cached;
   } catch { /* fall through */ }
 
-  // Keep raw bytes forever so cleaning can be re-run offline.
   let raw: string;
   try {
     raw = await fs.readFile(rawFile, "utf-8");
@@ -262,7 +244,6 @@ async function loadCorpus(work: CanonWork): Promise<string> {
   return cleaned;
 }
 
-/** Split into sentences without shredding abbreviations/quotes. */
 function splitSentences(text: string): string[] {
   return text
     .split(/(?<=[.!?…])["'"]?\s+(?=["'"]?[A-Z—])/g)
@@ -270,17 +251,13 @@ function splitSentences(text: string): string[] {
     .filter((s) => countWords(s) >= 4);
 }
 
-/**
- * Verbatim window of ~targetWords, snapped to sentence boundaries.
- * Start offset chosen with CSPRNG, biased away from front/back matter.
- */
 function sampleExcerpt(prose: string, targetWords: number): string {
   const sentences = splitSentences(prose);
   if (!sentences.length) throw new Error("No sentences parsed from corpus.");
 
   const lo = Math.floor(sentences.length * 0.08);
   const hi = Math.max(lo + 1, Math.floor(sentences.length * 0.92));
-    let idx = lo + securePick(Array.from({ length: hi - lo }, (_, i) => i));
+  let idx = lo + securePick(Array.from({ length: hi - lo }, (_, i) => i));
 
   const out: string[] = [];
   let words = 0;
@@ -293,21 +270,11 @@ function sampleExcerpt(prose: string, targetWords: number): string {
   return out.join(" ").replace(/\s+/g, " ").trim();
 }
 
-/** Random draw from one canon set. */
-async function drawRealExcerpt(canonId: CanonId): Promise<{ work: CanonWork; excerpt: string }> {
-  const pool = CANON[canonId].works;
-  const work = securePick(pool);
-  const prose = await loadCorpus(work);
-  return { work, excerpt: sampleExcerpt(prose, EXCERPT_WORDS) };
-}
-
-/** Same as drawRealExcerpt, but accepts a specific work (user-selected or list-displayed). */
 async function drawRealExcerptFrom(work: CanonWork): Promise<{ work: CanonWork; excerpt: string }> {
   const prose = await loadCorpus(work);
   return { work, excerpt: sampleExcerpt(prose, EXCERPT_WORDS) };
 }
 
-/** Pre-download + clean every work in both canons. Idempotent. */
 async function warmCorpus(): Promise<void> {
   const all = [...CANON.goth.works, ...CANON.glam.works];
   console.log(`Warming ${all.length} works into ${CORPUS_DIR}/cache …\n`);
@@ -367,6 +334,83 @@ async function saveState(session: SavedSession): Promise<void> {
   console.log(`\nSession saved to .state/${session.userId}.json`);
 }
 
+// ---------------------------------------------------------------------------
+// UNIQUE PATTERN MATCHING — fragment must match exactly once in the passage
+// ---------------------------------------------------------------------------
+
+function normalizeForMatch(s: string): string {
+  return s.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function uniqueMatch(text: string, fragment: string): boolean {
+  const normalized = normalizeForMatch(text);
+  const frag = normalizeForMatch(fragment);
+  if (!frag) return false;
+  const escaped = frag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const matches = normalized.match(new RegExp(escaped, "g"));
+  return matches !== null && matches.length === 1;
+}
+
+async function promptUniqueFragment(
+  rl: readline.Interface,
+  passage: string,
+  label: string
+): Promise<string> {
+  while (true) {
+    const fragment = (
+      await rl.question(`\nPaste ${label} (a few words that appear exactly once): `)
+    ).trim();
+
+    if (!fragment) {
+      console.log("Empty input. Try again.");
+      continue;
+    }
+
+    const normalized = normalizeForMatch(passage);
+    const frag = normalizeForMatch(fragment);
+    const escaped = frag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const matches = normalized.match(new RegExp(escaped, "g"))?.length ?? 0;
+
+    if (matches === 1) {
+      return fragment;
+    } else if (matches === 0) {
+      console.log(`"${fragment}" not found in the passage. Try a different fragment.`);
+    } else {
+      console.log(`"${fragment}" matched ${matches} times — not unique. Add more words.`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// TITLE SELECTION — exact title from all six, deterministic list order
+// ---------------------------------------------------------------------------
+
+async function promptTitleSelection(rl: readline.Interface): Promise<CanonWork> {
+  const allWorks = [...CANON.goth.works, ...CANON.glam.works];
+
+  console.log("\nAll six works:");
+  allWorks.forEach((w, i) => {
+    console.log(`  ${i + 1}) "${w.title}" (${w.year}) — ${w.author}`);
+  });
+
+  while (true) {
+    const answer = (await rl.question("\nSelect exact title: ")).trim();
+
+    // Allow selection by number too, but require exact title match for the spec
+    const byNumber = Number(answer);
+    if (Number.isInteger(byNumber) && byNumber >= 1 && byNumber <= allWorks.length) {
+      return allWorks[byNumber - 1];
+    }
+
+    const found = allWorks.find(
+      (w) => w.title.toLowerCase() === answer.toLowerCase()
+    );
+    if (found) return found;
+
+    console.log("Title not found. Type the exact title as shown above.");
+  }
+}
+
 export async function main() {
   // `npm run warm` / `node run.ts --warm` → fetch whole canon, then exit.
   if (process.argv.includes("--warm")) {
@@ -388,54 +432,14 @@ export async function main() {
     console.log("         L I T - F L O W - F L A S H     ");
     console.log("==========================================");
 
-    const formType = await promptFormChoice(rl);
-    const formConfig = FORMS[formType];
+    // --- Step 2: Select exact title from all six (not randomized) ----------
+    const work = await promptTitleSelection(rl);
 
-    // --- Mode selection -----------------------------------------------------
-    const modeAnswer = (
-      await rl.question(
-        "\nPassage source — [1] REAL verbatim canon excerpt (default) / [2] AI 'in the style of': "
-      )
-    ).trim();
-    const useReal = modeAnswer !== "2";
-
-    let passage: string;
-    let authorOrWork: string;
-    let drawnWork: CanonWork | undefined;
-
-    if (useReal) {
-      // --- Choose canon ---
-      const canonAnswer = (
-        await rl.question("Canon — [f] Glam Lit (Fitzgerald) / [r] Goth Lit (Radcliffe) [default f]: ")
-      ).trim().toLowerCase();
-      const canonId: CanonId = canonAnswer.startsWith("r") ? "goth" : "glam";
-
-      // --- Show the 3 titles from that canon (for reference) ---
-      const pool = CANON[canonId].works;
-      console.log(`\n${CANON[canonId].label}:`);
-      pool.forEach((w, i) => console.log(`  ${i + 1}) "${w.title}" (${w.year})`));
-      console.log();
-
-      // --- CSPRNG picks one behind the scenes ---
-      const work = securePick(pool);
-      drawnWork = work;
-      console.log(`Drawing a real ${EXCERPT_WORDS}-word excerpt from: "${work.title}" (${work.year})`);
-
-      const draw = await drawRealExcerptFrom(work);
-      passage = draw.excerpt;
-      authorOrWork = `"${draw.work.title}" (${draw.work.year}) — ${draw.work.author} · VERBATIM`;
-    } else {
-      const legacy =
-        (await rl.question("\nEnter public domain work/author [Ann Radcliffe]: ")).trim() ||
-        "The Mysteries of Udolpho by Ann Radcliffe";
-      authorOrWork = `${legacy} (AI STYLE SIMULATION)`;
-      console.log(`\nGenerating passage in the style of "${legacy}"...`);
-
-      const passageResponse = await generateResilientContent(ai, {
-        contents: `Generate a 250-300 word literary excerpt in the distinct style and voice of ${legacy}. Return ONLY the excerpt text with no introduction or metadata.`,
-      });
-      passage = passageResponse.text?.trim() || "";
-    }
+    // --- Step 1: Read hardcopy (any number of pages, no prompt) ------------
+    console.log(`\nDrawing a real ${EXCERPT_WORDS}-word excerpt from: "${work.title}" (${work.year})`);
+    const draw = await drawRealExcerptFrom(work);
+    const passage = draw.excerpt;
+    const authorOrWork = `"${draw.work.title}" (${draw.work.year}) — ${draw.work.author} · VERBATIM`;
 
     console.log(`\nSOURCE: ${authorOrWork}`);
     console.log(`EXCERPT WORDS: ${countWords(passage)}\n`);
@@ -443,8 +447,29 @@ export async function main() {
     console.log(passage);
     console.log("----------------------------------------\n");
 
-    console.log(`Form selected: ${formConfig.name} (${formConfig.description})`);
+    // --- Steps 3 & 4: Paste opening and closing sentences (unique match) ---
+    const openingSentence = await promptUniqueFragment(rl, passage, "opening sentence");
+    const closingSentence = await promptUniqueFragment(rl, passage, "closing sentence");
 
+    // --- Step 5: Echo back both boundary sentences to confirm --------------
+    console.log("\n--- BOUNDARY CONFIRMATION ---");
+    console.log(`Opening: "${openingSentence}"`);
+    console.log(`Closing: "${closingSentence}"`);
+    console.log("-----------------------------");
+    const confirmed = (await rl.question("Confirm these boundaries? [Y/n]: "))
+      .trim()
+      .toLowerCase();
+    if (confirmed === "n" || confirmed === "no") {
+      console.log("Cancelled. Re-run to start over.");
+      return;
+    }
+
+    // --- Step 6: Select form (epigram/vignette/drabble) --------------------
+    const formType = await promptFormChoice(rl);
+    const formConfig = FORMS[formType];
+    console.log(`\nForm selected: ${formConfig.name} (${formConfig.description})`);
+
+    // --- Step 7: Write your piece (book may stay open) ---------------------
     let submission = "";
     let wordCount = 0;
 
@@ -461,15 +486,20 @@ export async function main() {
       }
     }
 
+    // --- Step 8: Evaluate ----------------------------------------------------
     console.log("\nEvaluating submission...");
 
     const judgePrompt = `
 You are an uncompromising literary critic evaluating a student's flash-writing exercise.
 
-SOURCE PASSAGE${useReal ? " (VERBATIM PUBLIC-DOMAIN TEXT)" : ""}:
+SOURCE PASSAGE (VERBATIM PUBLIC-DOMAIN TEXT):
 """
 ${passage}
 """
+
+BOUNDARY SENTENCES IDENTIFIED BY STUDENT:
+Opening: "${openingSentence}"
+Closing: "${closingSentence}"
 
 STUDENT SUBMISSION (${formConfig.name}, target: ${formConfig.description}):
 """
@@ -477,7 +507,7 @@ ${submission}
 """
 
 Evaluate the submission across these 5 criteria on a 0-10 scale:
-1. style_alignment: Voice and cadence echo of the source author${useReal ? " (real PD text, not a simulation)" : ""}
+1. style_alignment: Voice and cadence echo of the source author (real PD text)
 2. motif_reuse: Subtle reinterpretation of symbols or motifs
 3. precision: Exactness of word choice and phrasing
 4. concision: Zero wasted filler word count
@@ -490,7 +520,7 @@ Return ONLY a JSON object matching this exact schema:
   "precision": number,
   "concision": number,
   "originality": number,
-  "total_score": number, // Sum of 5 metrics * 2 (Out of 100)
+  "total_score": number,
   "feedback": "Concise line-wrapped notes detailing strengths and specific fixes"
 }
 `;
@@ -521,11 +551,13 @@ Return ONLY a JSON object matching this exact schema:
       form: formType,
       authorOrWork,
       passage,
+      openingSentence,
+      closingSentence,
       userSubmission: submission,
       wordCount,
       evaluation,
-      sourceMode: useReal ? "verbatim-canon" : "ai-style",
-      gutenbergId: drawnWork?.gutenbergId,
+      sourceMode: "verbatim-canon",
+      gutenbergId: work.gutenbergId,
     });
   } catch (error: any) {
     console.error("\nExecution failed:", error?.message || error);
