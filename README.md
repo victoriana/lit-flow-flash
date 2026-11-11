@@ -155,7 +155,7 @@ Gemini evaluates each entry on five core metrics (0–10 scale):
 | originality | How fresh your transformation is (heavily penalizes verbatim copying) |
 
 **Total Score calculation:**
-Total Score = (Style + Motif + Precision + Concision + Originality) × 2 = Score out of 100
+Total Score = Style + Motif + Precision + Concision + Originality = Score out of 50
 
 All progress is saved to .state/<USER_ID>.json with full metric breakdowns, timestamps, source mode, boundary fragments, and the sliced passage so you can track clarity and style trends over time.
 
