@@ -36,21 +36,21 @@ The orchestrator enforces the loop sequentially: it asks for your form, presents
 
 By default, the app draws verbatim excerpts from a curated canon of six public-domain novels, all available on Project Gutenberg US:
 
-### Goth Lit — Ann Radcliffe
-
-| Title | Year | PG ID |
-|---|---|---|
-| *A Sicilian Romance* | 1790 | 2542 |
-| *The Romance of the Forest* | 1791 | 64701 |
-| *The Mysteries of Udolpho* | 1794 | 3268 |
-
 ### Glam Lit — F. Scott Fitzgerald
 
 | Title | Year | PG ID |
 |---|---|---|
-| *This Side of Paradise* | 1920 | 1680 |
+| *This Side of Paradise* | 1920 | 805 |
 | *The Beautiful and Damned* | 1922 | 9830 |
 | *The Great Gatsby* | 1925 | 64317 |
+
+### Goth Lit — Ann Radcliffe
+
+| Title | Year | PG ID |
+|---|---|---|
+| *A Sicilian Romance* | 1790 | 7371 |
+| *The Romance of the Forest* | 1791 | 64701 |
+| *The Mysteries of Udolpho* | 1794 | 3268 |
 
 When you select the verbatim mode, the app displays all three titles from your chosen canon, then randomly selects one (using cryptographically-strong randomness). Each text is fetched from Project Gutenberg, cleaned of boilerplate and formatting, and cached locally. Subsequent draws are instant and fully offline.
 
