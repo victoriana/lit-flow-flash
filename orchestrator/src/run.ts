@@ -587,7 +587,7 @@ Return ONLY a JSON object matching this exact schema:
     const evaluation: EvaluationScore = JSON.parse(evalText);
 
     console.log("\n==========================================");
-    console.log(` SCORE: ${evaluation.total_score} / 100`);
+    console.log(` SCORE: ${evaluation.total_score} / 50`);
     console.log("==========================================");
     console.log(`Style Alignment: ${evaluation.style_alignment}/10`);
     console.log(`Motif Reuse:     ${evaluation.motif_reuse}/10`);
