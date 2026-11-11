@@ -18,7 +18,6 @@ const USER_ID = process.env.USER_ID || "default";
 // ---------------------------------------------------------------------------
 
 const CORPUS_DIR = process.env.CORPUS_DIR || path.join(process.cwd(), ".corpus");
-const EXCERPT_WORDS = Number(process.env.EXCERPT_WORDS || 500);
 const PG_MIRROR = process.env.PG_MIRROR || "https://www.gutenberg.org";
 
 type CanonId = "goth" | "glam";
@@ -101,7 +100,7 @@ interface SavedSession {
   userSubmission: string;
   wordCount: number;
   evaluation: EvaluationScore;
-  sourceMode: "verbatim-canon" | "ai-style";
+  sourceMode: "verbatim-canon";
   gutenbergId?: number;
 }
 
@@ -160,12 +159,6 @@ function slug(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-function securePick<T>(arr: readonly T[]): T {
-  const buf = new Uint32Array(1);
-  crypto.getRandomValues(buf);
-  return arr[buf[0] % arr.length];
-}
-
 async function fetchWithTimeout(url: string, ms = 30_000): Promise<string> {
   const res = await fetch(url, {
     signal: AbortSignal.timeout(ms),
@@ -199,7 +192,8 @@ function cleanProse(raw: string): string {
   }
 
   t = t.replace(/(\w)-\r?\n(\w)/g, "$1$2");
-  t = t.replace(/\s*\r?\n\s*/g, (m) => (/\n\s*\n/.test(m) ? "\n\n" : " "));
+  t = t.replace(/\s*\r?\n\s*/g
+                  (m) => (/\n\s*\n/.test(m) ? "\n\n" : " "));
   t = t.replace(/([a-z])\d{1,3}\b/g, "$1");
   t = t.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
   return t;
@@ -236,7 +230,7 @@ async function loadCorpus(work: CanonWork): Promise<string> {
   }
 
   const cleaned = cleanProse(raw);
-  if (countWords(cleaned) < EXCERPT_WORDS * 3) {
+  if (countWords(cleaned) < 5000) {
     throw new Error(`Corpus too small for "${work.title}" — check PG id ${work.gutenbergId}.`);
   }
 
@@ -244,6 +238,7 @@ async function loadCorpus(work: CanonWork): Promise<string> {
   return cleaned;
 }
 
+/** Split text into sentences for slicing. */
 function splitSentences(text: string): string[] {
   return text
     .split(/(?<=[.!?…])["'"]?\s+(?=["'"]?[A-Z—])/g)
@@ -251,48 +246,139 @@ function splitSentences(text: string): string[] {
     .filter((s) => countWords(s) >= 4);
 }
 
-function sampleExcerpt(prose: string, targetWords: number): string {
-  const sentences = splitSentences(prose);
-  if (!sentences.length) throw new Error("No sentences parsed from corpus.");
+/**
+ * Slice the passage between two boundary fragments.
+ * Returns the text between the sentence containing the opening fragment
+ * and the sentence containing the closing fragment.
+ */
+function sliceSpan(prose: string, openFragment: string, closeFragment: string): string {
+  const normalized = normalizeForMatch(prose);
+  const open = normalizeForMatch(openFragment);
+  const close = normalizeForMatch(closeFragment);
 
-  const lo = Math.floor(sentences.length * 0.08);
-  const hi = Math.max(lo + 1, Math.floor(sentences.length * 0.92));
-  let idx = lo + securePick(Array.from({ length: hi - lo }, (_, i) => i));
+  const openIdx = normalized.indexOf(open);
+  const closeIdx = normalized.indexOf(close);
 
-  const out: string[] = [];
-  let words = 0;
-  while (idx < sentences.length && words < targetWords) {
-    out.push(sentences[idx]);
-    words += countWords(sentences[idx]);
-    idx++;
-    if (words >= targetWords * 0.85 && /[.!?…]["'"]?$/.test(out[out.length - 1])) break;
+  if (openIdx === -1 || closeIdx === -1 || openIdx >= closeIdx) {
+    return ""; // Should not happen, validated earlier
   }
-  return out.join(" ").replace(/\s+/g, " ").trim();
+
+  // Find sentence boundaries
+  const sentences = splitSentences(prose);
+  let sentenceIdx = 0;
+  let currentPos = 0;
+
+  // Find which sentence contains the opening
+  for (let i = 0; i < sentences.length; i++) {
+    const sentNorm = normalizeForMatch(sentences[i]);
+    if (normalized.indexOf(open) >= currentPos && normalized.indexOf(open) < currentPos + sentNorm.length) {
+      sentenceIdx = i;
+      break;
+    }
+    currentPos += sentNorm.length + 1; // +1 for space
+  }
+
+  // Find which sentence contains the closing
+  let endIdx = sentenceIdx;
+  currentPos = 0;
+  for (let i = 0; i < sentences.length; i++) {
+    const sentNorm = normalizeForMatch(sentences[i]);
+    if (normalized.indexOf(close) >= currentPos && normalized.indexOf(close) < currentPos + sentNorm.length) {
+      endIdx = i;
+      break;
+    }
+    currentPos += sentNorm.length + 1;
+  }
+
+  // Join sentences between start and end
+  const sliced = sentences.slice(sentenceIdx, endIdx + 1).join(" ");
+  return sliced.replace(/\s+/g, " ").trim();
 }
 
-async function drawRealExcerptFrom(work: CanonWork): Promise<{ work: CanonWork; excerpt: string }> {
-  const prose = await loadCorpus(work);
-  return { work, excerpt: sampleExcerpt(prose, EXCERPT_WORDS) };
+// ---------------------------------------------------------------------------
+// UNIQUE PATTERN MATCHING
+// ---------------------------------------------------------------------------
+
+function normalizeForMatch(s: string): string {
+  return s.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
-async function warmCorpus(): Promise<void> {
-  const all = [...CANON.goth.works, ...CANON.glam.works];
-  console.log(`Warming ${all.length} works into ${CORPUS_DIR}/cache …\n`);
+function uniqueMatch(text: string, fragment: string): { index: number; count: number } {
+  const normalized = normalizeForMatch(text);
+  const frag = normalizeForMatch(fragment);
+  if (!frag) return { index: -2, count: 0 };
+  const escaped = frag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const matches = [...normalized.matchAll(new RegExp(escaped, "g"))];
+  return { index: matches.length === 1 ? matches[0].index! : -1, count: matches.length };
+}
 
-  let ok = 0;
-  for (const work of all) {
-    try {
-      const prose = await loadCorpus(work);
-      console.log(`  ✓ ${work.title} (${countWords(prose).toLocaleString()} words)`);
-      ok++;
-    } catch (err: any) {
-      console.error(`  ✗ ${work.title}: ${err?.message || err}`);
+async function promptUniqueFragment(
+  rl: readline.Interface,
+  passage: string,
+  label: string,
+  afterIndex?: number
+): Promise<string> {
+  while (true) {
+    const fragment = (
+      await rl.question(`\nPaste ${label} (a few words that appear exactly once): `)
+    ).trim();
+
+    if (!fragment) {
+      console.log("Empty input. Try again.");
+      continue;
+    }
+
+    const result = uniqueMatch(passage, fragment);
+
+    if (result.index === -2) {
+      console.log("Empty input. Try again.");
+      continue;
+    }
+
+    if (result.count === 0) {
+      console.log(`"${fragment}" not found in the passage. Try a different fragment.`);
+    } else if (result.count > 1) {
+      console.log(`"${fragment}" matched ${result.count} times — not unique. Add more words.`);
+    } else if (afterIndex !== undefined && result.index <= afterIndex) {
+      console.log("That appears before your opening sentence. Pick a later fragment.");
+    } else {
+      return fragment;
     }
   }
-
-  console.log(`\nDone: ${ok}/${all.length} cached.`);
-  if (ok < all.length) process.exitCode = 1;
 }
+
+// ---------------------------------------------------------------------------
+// TITLE SELECTION
+// ---------------------------------------------------------------------------
+
+async function promptTitleSelection(rl: readline.Interface): Promise<CanonWork> {
+  const allWorks = [...CANON.goth.works, ...CANON.glam.works];
+
+  console.log("\nAll six works:");
+  allWorks.forEach((w, i) => {
+    console.log(`  ${i + 1}) "${w.title}" (${w.year}) — ${w.author}`);
+  });
+
+  while (true) {
+    const answer = (await rl.question("\nSelect exact title: ")).trim();
+
+    const byNumber = Number(answer);
+    if (Number.isInteger(byNumber) && byNumber >= 1 && byNumber <= allWorks.length) {
+      return allWorks[byNumber - 1];
+    }
+
+    const found = allWorks.find(
+      (w) => w.title.toLowerCase() === answer.toLowerCase()
+    );
+    if (found) return found;
+
+    console.log("Title not found. Type the exact title as shown above.");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// FORM SELECTION
+// ---------------------------------------------------------------------------
 
 async function promptFormChoice(rl: readline.Interface): Promise<FormType> {
   const envForm = process.env.FORM?.toLowerCase() as FormType;
@@ -315,6 +401,10 @@ async function promptFormChoice(rl: readline.Interface): Promise<FormType> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// SAVE STATE
+// ---------------------------------------------------------------------------
+
 async function saveState(session: SavedSession): Promise<void> {
   const stateDir = path.join(process.cwd(), ".state");
   const filePath = path.join(stateDir, `${session.userId}.json`);
@@ -335,84 +425,33 @@ async function saveState(session: SavedSession): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// UNIQUE PATTERN MATCHING — fragment must match exactly once in the passage
+// WARM CORPUS
 // ---------------------------------------------------------------------------
 
-function normalizeForMatch(s: string): string {
-  return s.replace(/\s+/g, " ").trim().toLowerCase();
-}
+async function warmCorpus(): Promise<void> {
+  const all = [...CANON.goth.works, ...CANON.glam.works];
+  console.log(`Warming ${all.length} works into ${CORPUS_DIR}/cache …\n`);
 
-function uniqueMatch(text: string, fragment: string): boolean {
-  const normalized = normalizeForMatch(text);
-  const frag = normalizeForMatch(fragment);
-  if (!frag) return false;
-  const escaped = frag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const matches = normalized.match(new RegExp(escaped, "g"));
-  return matches !== null && matches.length === 1;
-}
-
-async function promptUniqueFragment(
-  rl: readline.Interface,
-  passage: string,
-  label: string
-): Promise<string> {
-  while (true) {
-    const fragment = (
-      await rl.question(`\nPaste ${label} (a few words that appear exactly once): `)
-    ).trim();
-
-    if (!fragment) {
-      console.log("Empty input. Try again.");
-      continue;
-    }
-
-    const normalized = normalizeForMatch(passage);
-    const frag = normalizeForMatch(fragment);
-    const escaped = frag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const matches = normalized.match(new RegExp(escaped, "g"))?.length ?? 0;
-
-    if (matches === 1) {
-      return fragment;
-    } else if (matches === 0) {
-      console.log(`"${fragment}" not found in the passage. Try a different fragment.`);
-    } else {
-      console.log(`"${fragment}" matched ${matches} times — not unique. Add more words.`);
+  let ok = 0;
+  for (const work of all) {
+    try {
+      const prose = await loadCorpus(work);
+      console.log(`  ✓ ${work.title} (${countWords(prose).toLocaleString()} words)`);
+      ok++;
+    } catch (err: any) {
+      console.error(`  ✗ ${work.title}: ${err?.message || err}`);
     }
   }
+
+  console.log(`\nDone: ${ok}/${all.length} cached.`);
+  if (ok < all.length) process.exitCode = 1;
 }
 
 // ---------------------------------------------------------------------------
-// TITLE SELECTION — exact title from all six, deterministic list order
+// MAIN
 // ---------------------------------------------------------------------------
-
-async function promptTitleSelection(rl: readline.Interface): Promise<CanonWork> {
-  const allWorks = [...CANON.goth.works, ...CANON.glam.works];
-
-  console.log("\nAll six works:");
-  allWorks.forEach((w, i) => {
-    console.log(`  ${i + 1}) "${w.title}" (${w.year}) — ${w.author}`);
-  });
-
-  while (true) {
-    const answer = (await rl.question("\nSelect exact title: ")).trim();
-
-    // Allow selection by number too, but require exact title match for the spec
-    const byNumber = Number(answer);
-    if (Number.isInteger(byNumber) && byNumber >= 1 && byNumber <= allWorks.length) {
-      return allWorks[byNumber - 1];
-    }
-
-    const found = allWorks.find(
-      (w) => w.title.toLowerCase() === answer.toLowerCase()
-    );
-    if (found) return found;
-
-    console.log("Title not found. Type the exact title as shown above.");
-  }
-}
 
 export async function main() {
-  // `npm run warm` / `node run.ts --warm` → fetch whole canon, then exit.
   if (process.argv.includes("--warm")) {
     await warmCorpus();
     return;
@@ -432,29 +471,28 @@ export async function main() {
     console.log("         L I T - F L O W - F L A S H     ");
     console.log("==========================================");
 
-    // --- Step 2: Select exact title from all six (not randomized) ----------
+    // Step 2: Select exact title
     const work = await promptTitleSelection(rl);
 
-    // --- Step 1: Read hardcopy (any number of pages, no prompt) ------------
-    console.log(`\nDrawing a real ${EXCERPT_WORDS}-word excerpt from: "${work.title}" (${work.year})`);
-    const draw = await drawRealExcerptFrom(work);
-    const passage = draw.excerpt;
-    const authorOrWork = `"${draw.work.title}" (${draw.work.year}) — ${draw.work.author} · VERBATIM`;
+    // Step 1: Load corpus (no text displayed)
+    console.log(`\nLoading "${work.title}" (${work.year})...`);
+    const prose = await loadCorpus(work);
+        console.log(`✓ Corpus loaded (${countWords(prose).toLocaleString()} words). No text will be displayed.`);
 
-    console.log(`\nSOURCE: ${authorOrWork}`);
-    console.log(`EXCERPT WORDS: ${countWords(passage)}\n`);
-    console.log("--- READ & INTERNALIZE (CLOSED-BOOK) ---");
-    console.log(passage);
-    console.log("----------------------------------------\n");
+    // Steps 3 & 4: Boundary fragments — unique pattern match against full book
+    const openFragment = await promptUniqueFragment(rl, prose, "opening sentence of the section you read");
+    const openResult = uniqueMatch(prose, openFragment);
+    const closeFragment = await promptUniqueFragment(
+      rl,
+      prose,
+      "closing sentence of the section you read",
+      openResult.index
+    );
 
-    // --- Steps 3 & 4: Paste opening and closing sentences (unique match) ---
-    const openingSentence = await promptUniqueFragment(rl, passage, "opening sentence");
-    const closingSentence = await promptUniqueFragment(rl, passage, "closing sentence");
-
-    // --- Step 5: Echo back both boundary sentences to confirm --------------
+    // Step 5: Echo back both boundary fragments to confirm
     console.log("\n--- BOUNDARY CONFIRMATION ---");
-    console.log(`Opening: "${openingSentence}"`);
-    console.log(`Closing: "${closingSentence}"`);
+    console.log(`Opening: "${openFragment}"`);
+    console.log(`Closing: "${closeFragment}"`);
     console.log("-----------------------------");
     const confirmed = (await rl.question("Confirm these boundaries? [Y/n]: "))
       .trim()
@@ -464,12 +502,23 @@ export async function main() {
       return;
     }
 
-    // --- Step 6: Select form (epigram/vignette/drabble) --------------------
+    // Step 5b: Echo the sliced span between the boundaries
+    const passage = sliceSpan(prose, openFragment, closeFragment);
+    if (!passage || countWords(passage) < 10) {
+      console.error("Could not extract a valid span from your boundaries. Re-run and widen your selection.");
+      return;
+    }
+
+    console.log(`\n--- YOUR SECTION (${countWords(passage)} words) ---`);
+    console.log(passage);
+    console.log("--------------------------------------\n");
+
+    // Step 6: Select form
     const formType = await promptFormChoice(rl);
     const formConfig = FORMS[formType];
     console.log(`\nForm selected: ${formConfig.name} (${formConfig.description})`);
 
-    // --- Step 7: Write your piece (book may stay open) ---------------------
+    // Step 7: Write your piece (book may stay open)
     let submission = "";
     let wordCount = 0;
 
@@ -486,20 +535,20 @@ export async function main() {
       }
     }
 
-    // --- Step 8: Evaluate ----------------------------------------------------
+    // Step 8: Evaluate
     console.log("\nEvaluating submission...");
 
     const judgePrompt = `
 You are an uncompromising literary critic evaluating a student's flash-writing exercise.
 
-SOURCE PASSAGE (VERBATIM PUBLIC-DOMAIN TEXT):
+SOURCE PASSAGE (VERBATIM PUBLIC-DOMAIN TEXT — the exact section the student read on paper):
 """
 ${passage}
 """
 
 BOUNDARY SENTENCES IDENTIFIED BY STUDENT:
-Opening: "${openingSentence}"
-Closing: "${closingSentence}"
+Opening: "${openFragment}"
+Closing: "${closeFragment}"
 
 STUDENT SUBMISSION (${formConfig.name}, target: ${formConfig.description}):
 """
@@ -508,7 +557,7 @@ ${submission}
 
 Evaluate the submission across these 5 criteria on a 0-10 scale:
 1. style_alignment: Voice and cadence echo of the source author (real PD text)
-2. motif_reuse: Subtle reinterpretation of symbols or motifs
+2. motif_reuse: Subtle reinterpretation of symbols or motifs from the source passage
 3. precision: Exactness of word choice and phrasing
 4. concision: Zero wasted filler word count
 5. originality: Fresh transformation (penalize verbatim copying from the source)
@@ -549,10 +598,10 @@ Return ONLY a JSON object matching this exact schema:
       timestamp: new Date().toISOString(),
       userId: USER_ID,
       form: formType,
-      authorOrWork,
+      authorOrWork: `"${work.title}" (${work.year}) — ${work.author} · VERBATIM`,
       passage,
-      openingSentence,
-      closingSentence,
+      openingSentence: openFragment,
+      closingSentence: closeFragment,
       userSubmission: submission,
       wordCount,
       evaluation,
