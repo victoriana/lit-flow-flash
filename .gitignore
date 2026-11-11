@@ -21,3 +21,5 @@ venv/
 orchestrator/.env
 orchestrator/node_modules/
 .state/
+
+.corpus/
