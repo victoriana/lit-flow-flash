@@ -4,7 +4,7 @@
   "description": "MCP client that drives the read-write-score loop for lit-flow-flash",
   "type": "module",
   "scripts": {
-    "start": "tsx src/run.ts"
+    "start": "tsx src/run.ts",
     "warm": "tsx src/run.ts --warm"
   },
   "keywords": [],
