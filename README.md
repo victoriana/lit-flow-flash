@@ -19,7 +19,7 @@ The coach closes the loop with strict, fact-based feedback: how well did your pi
 
 ## Try it yourself
 
-See [sample-session2.md](sample-session2.md) for a full read→write→judge transcript — a deliberately shoddy epigram scored against F. Scott Fitzgerald.
+See [sample-session2.md](sample-session.md) for a full read→write→judge transcript — a deliberately shoddy epigram scored against F. Scott Fitzgerald.
 
 ---
 
