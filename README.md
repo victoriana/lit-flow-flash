@@ -6,7 +6,7 @@ Instead of letting generative content ad infinitum fragment your attention, you 
 
 **lit-flow-flash** joins focused reading and deliberate writing into a single practice, and measures the result.
 
-The flow-read is deliberate immersion in public-domain prose or authentic stylistic generation from works that have survived over a century of scrutiny. You anchor your attention to a specific passage—either pulled verbatim from a curated corpus of real texts or generated in the style of an author of your choice—rather than an infinite feed.
+The flow-read is deliberate immersion in public-domain prose. You anchor your attention to a specific passage from a curated corpus of real texts — the app never displays or generates excerpts. You read your physical book, then prove you know where your section begins and ends by pasting two short fragments that each match **exactly once** in the entire work. Only after you confirm those boundaries does the app reveal the text between them, then prompt you to write.
 
 The subsequent piece forces distillation:
 - An **Epigram** leaves room for a single focused observation delivered in a single breath.
@@ -15,26 +15,31 @@ The subsequent piece forces distillation:
 
 No word is filler. Every word must earn its place by echoing the tone of what you read, by carrying a motif forward, and by reinterpreting a concept into something new. This is not a summary; it is a creative transposition.
 
-The coach closes the loop with strict, fact-based feedback: how well did your piece match the author's style? Which motifs did you recall? Did your reinterpretation feel fresh or derivative? Over time, you see your clarity trends—whether you are getting better at holding, distilling, and transforming syntax into spoken or written muscle memory.
+The coach closes the loop with strict, fact-based feedback: how well did your piece match the author's style? Which motifs did you recall? Did your reinterpretation feel fresh or derivative? Over time, you see your clarity trends — whether you are getting better at holding, distilling, and transforming syntax into spoken or written muscle memory.
 
 ## Try it yourself
 
-See [sample-session.md](sample-session.md) for a full read→write→judge transcript — a deliberately shoddy epigram scored against Ann Radcliffe.
+See [sample-session2.md](sample-session2.md) for a full read→write→judge transcript — a deliberately shoddy epigram scored against F. Scott Fitzgerald.
 
 ---
-## How it works
 
-The app follows a simple three-stage loop:
+## The 8-step flow
 
-1. **Select & Read** — The user picks a form (**Epigram**, **Vignette**, or **Drabble**) and chooses a passage source: either **verbatim excerpts from a curated public-domain corpus** (see [Corpus](#corpus)) or **AI-style generation** in the voice of any public-domain work. Gemini fetches or generates a 250–500 word passage.
-2. **Write (Closed-book)** — Immediately after reading, the user drafts a piece entirely from memory with zero assistance from text tools. The submission must echo the author's style, reinterpret motifs, and strictly satisfy the word count bounds of the chosen form.
-3. **Evaluate (Agentic-AI)** — Gemini scores the piece across five metrics (0–10 each), computes a total score out of 100, formats the feedback cleanly with line-wrapped notes, and saves the entry to `.state/<USER_ID>.json`.
+The app enforces a strict sequential loop. Nothing is displayed to you until you have verified what you read:
 
-The orchestrator enforces the loop sequentially: it asks for your form, presents the passage, waits for your constrained entry, scores, and saves.
+1. **Read hardcopy** — physical book, no prompt, no text shown by the app
+2. **Select exact title** — from all six works, deterministic order, no randomization
+3. **Paste opening fragment** — a few words that uniquely identify a location in the text
+4. **Paste closing fragment** — similarly unique, and must come after the opening
+5. **Echo confirmation** — app prints both fragments back to you
+5b. **Echo the sliced span** — app prints the actual text between your two boundary fragments
+6. **Select form** — epigram (15–25 words), vignette (30–50 words), drabble (exactly 100 words)
+7. **Write your piece** — book stays open on your desk, nothing displayed by the app
+8. **Evaluate** — LLM scores your submission across five metrics
 
 ## Corpus
 
-By default, the app draws verbatim excerpts from a curated canon of six public-domain novels, all available on Project Gutenberg US:
+The app draws verbatim excerpts from a curated canon of six public-domain novels, all available on Project Gutenberg US:
 
 ### Glam Lit — F. Scott Fitzgerald
 
@@ -52,13 +57,13 @@ By default, the app draws verbatim excerpts from a curated canon of six public-d
 | *The Romance of the Forest* | 1791 | 64701 |
 | *The Mysteries of Udolpho* | 1794 | 3268 |
 
-When you select the verbatim mode, the app displays all three titles from your chosen canon, then randomly selects one (using cryptographically-strong randomness). Each text is fetched from Project Gutenberg, cleaned of boilerplate and formatting, and cached locally. Subsequent draws are instant and fully offline.
+When you select a title, the full text is fetched from Project Gutenberg, cleaned of boilerplate and formatting, and cached locally. **No passage is ever displayed to you.** The text is loaded silently into memory for unique-fragment matching only.
 
-The corpus is pre-warmed by running `npm run warm` once — this downloads and caches all six books (~6 MB total). After that, the app runs entirely without network access.
+The corpus is pre-warmed by running `npm run warm` once — this downloads and caches all six books (~6 MB total). After that, the app runs entirely without network access until the evaluation step.
 
 ## Forms
 
-At startup, the app prompts you to choose your form:
+At startup (after boundary confirmation), the app prompts you to choose your form:
 
 | Form | Word Count | Purpose & Conversational Equivalent |
 |---|---|---|
@@ -67,6 +72,17 @@ At startup, the app prompts you to choose your form:
 | **Drabble** | Exactly 100 words | Sustained prose; complete miniature story |
 
 Word counts are strictly enforced by the CLI before submission to the evaluator. Hyphenated words (e.g., "well-lit") count as one word. The form name and target word count are passed directly to the judge so concision and precision are evaluated relative to that form's specific constraints.
+
+## Unique-fragment integrity
+
+The core design principle is **uniqueness gating**. When you paste a fragment, the app searches the entire cached text and rejects it unless it matches **exactly once**. This means:
+
+- A fragment cannot be guessed from a summary or blurb
+- Typos are caught immediately (e.g., "lunchon" vs. "luncheon")
+- Ambiguous matches (e.g., "he said" appearing 47 times) are rejected with a count
+- The fragment must come after your opening boundary, enforced by index comparison
+
+This turns a simple memory claim into a verified contract: fragments confirmed, then span revealed, then pen required.
 
 ## Architecture & Tech Stack
 
@@ -91,11 +107,12 @@ Word counts are strictly enforced by the CLI before submission to the evaluator.
 cd orchestrator
 npm install
 ```
+
 2. Set your Google Gemini API key:
 ```bash
     export GEMINI_API_KEY="your_api_key_here"
 ```
-   (On Windows PowerShell: `$env:GEMINI_API_KEY="your_api_key_here"`)
+   (On Windows PowerShell: $env:GEMINI_API_KEY="your_api_key_here")
 
 3. Pre-warm the corpus (downloads and caches all six novels):
 ```bash
@@ -105,19 +122,19 @@ npm install
 ```bash
     npm start
 ```
+
 ## Configuration
 
 You can bypass CLI prompts or target specific sessions using environment variables:
 
 | Variable | Default | Description |
 |---|---|---|
-| `GEMINI_API_KEY` | *(required)* | Google AI Studio API key |
-| `GEMINI_MODEL` | `gemini-3.8-flash` | Gemini model used for generation and evaluation |
-| `FORM` | *(prompt)* | Bypasses menu prompt (`epigram`, `vignette`, or `drabble`) |
-| `USER_ID` | `default` | Session identifier for state tracking (`.state/<USER_ID>.json`) |
-| `EXCERPT_WORDS` | `500` | Target word count for corpus excerpts (snapped to sentence boundaries) |
-| `CORPUS_DIR` | `.corpus` | Directory for cached corpus files |
-| `PG_MIRROR` | `https://www.gutenberg.org` | Base URL for Project Gutenberg downloads |
+| GEMINI_API_KEY | *(required)* | Google AI Studio API key |
+| GEMINI_MODEL | gemini-3.8-flash | Gemini model used for evaluation |
+| FORM | *(prompt)* | Bypasses menu prompt (epigram, vignette, or drabble) |
+| USER_ID | default | Session identifier for state tracking (.state/<USER_ID>.json) |
+| CORPUS_DIR | .corpus | Directory for cached corpus files |
+| PG_MIRROR | https://www.gutenberg.org | Base URL for Project Gutenberg downloads |
 
 ### Example CLI Shortcuts
 
@@ -131,23 +148,71 @@ Gemini evaluates each entry on five core metrics (0–10 scale):
 
 | Metric | Description |
 |---|---|
-| `style_alignment` | How closely your prose matches the source author's voice and cadence |
-| `motif_reuse` | Whether you drew upon symbols, images, or atmospheric cues from the passage |
-| `precision` | Exactness of word choice and phrasing |
-| `concision` | Tightness of writing with zero wasted filler relative to form length |
-| `originality` | How fresh your transformation is (heavily penalizes verbatim copying) |
+| style_alignment | How closely your prose matches the source author's voice and cadence |
+| motif_reuse | Whether you drew upon symbols, images, or atmospheric cues from the passage |
+| precision | Exactness of word choice and phrasing |
+| concision | Tightness of writing with zero wasted filler relative to form length |
+| originality | How fresh your transformation is (heavily penalizes verbatim copying) |
 
 **Total Score calculation:**
 Total Score = (Style + Motif + Precision + Concision + Originality) × 2 = Score out of 100
 
-All progress is saved to `.state/<USER_ID>.json` with full metric breakdowns, timestamps, source mode (`verbatim-canon` or `ai-style`), and target word counts so you can track clarity and style trends over time.
+All progress is saved to .state/<USER_ID>.json with full metric breakdowns, timestamps, source mode, boundary fragments, and the sliced passage so you can track clarity and style trends over time.
 
 ---
 
-## 💡 What Makes This Special
+## What Makes This Special
 
-Standard AI chat interfaces are built to be fluid, accommodating, and endlessly polite—they want to please you, keep the conversation moving, and forgive your mistakes. lit-flow-flash strips away that conversational cushion and replaces it with programmatic friction.
+Standard AI chat interfaces are built to be fluid, accommodating, and endlessly polite — they want to please you, keep the conversation moving, and forgive your mistakes. lit-flow-flash strips away that conversational cushion and replaces it with programmatic friction.
 
-Instead of acting as a passive chat prompt, it operates as an automated loop: presenting targeted literary passages, enforcing rigid word-count boundaries before evaluation, scoring your output against objective metrics, and persisting your progression locally over time.
+Instead of acting as a passive chat prompt, it operates as an automated loop: enforcing boundary verification, revealing only the section you anchored to, scoring your output against objective metrics, and persisting your progression locally over time. The unique-fragment requirement ensures you cannot game the system by pasting summary text or hallucinated context. You must have read the book.
 
-If your goal is to master literary works so deeply that their cadence alters your natural speech and expression, this app functions as a cognitive gym. Just like lifting weights creates micro-tears that force muscle growth, the combination of strict word boundaries and harsh scoring forces your brain to distill expansive, dreamlike reading into sharp, precise, and resonant prose.
+If your goal is to master literary works so deeply that their cadence alters your natural speech and expression, this app functions as a cognitive gym. Just like lifting weights creates micro-tears that force muscle growth, the combination of strict word boundaries, uniqueness gating, and harsh scoring forces your brain to distill expansive, dreamlike reading into sharp, precise, and resonant prose.
+``````text
+    npm start
+
+## Configuration
+
+You can bypass CLI prompts or target specific sessions using environment variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| GEMINI_API_KEY | *(required)* | Google AI Studio API key |
+| GEMINI_MODEL | gemini-3.8-flash | Gemini model used for evaluation |
+| FORM | *(prompt)* | Bypasses menu prompt (epigram, vignette, or drabble) |
+| USER_ID | default | Session identifier for state tracking (.state/<USER_ID>.json) |
+| CORPUS_DIR | .corpus | Directory for cached corpus files |
+| PG_MIRROR | https://www.gutenberg.org | Base URL for Project Gutenberg downloads |
+
+### Example CLI Shortcuts
+
+    FORM=epigram npm start
+    FORM=vignette USER_ID=alex npm start
+    npm run warm  # pre-warm corpus before first session
+
+## Scoring & State
+
+Gemini evaluates each entry on five core metrics (0–10 scale):
+
+| Metric | Description |
+|---|---|
+| style_alignment | How closely your prose matches the source author's voice and cadence |
+| motif_reuse | Whether you drew upon symbols, images, or atmospheric cues from the passage |
+| precision | Exactness of word choice and phrasing |
+| concision | Tightness of writing with zero wasted filler relative to form length |
+| originality | How fresh your transformation is (heavily penalizes verbatim copying) |
+
+**Total Score calculation:**
+Total Score = (Style + Motif + Precision + Concision + Originality) × 2 = Score out of 100
+
+All progress is saved to .state/<USER_ID>.json with full metric breakdowns, timestamps, source mode, boundary fragments, and the sliced passage so you can track clarity and style trends over time.
+
+---
+
+## What Makes This Special
+
+Standard AI chat interfaces are built to be fluid, accommodating, and endlessly polite — they want to please you, keep the conversation moving, and forgive your mistakes. lit-flow-flash strips away that conversational cushion and replaces it with programmatic friction.
+
+Instead of acting as a passive chat prompt, it operates as an automated loop: enforcing boundary verification, revealing only the section you anchored to, scoring your output against objective metrics, and persisting your progression locally over time. The unique-fragment requirement ensures you cannot game the system by pasting summary text or hallucinated context. You must have read the book.
+
+If your goal is to master literary works so deeply that their cadence alters your natural speech and expression, this app functions as a cognitive gym. Just like lifting weights creates micro-tears that force muscle growth, the combination of strict word boundaries, uniqueness gating, and harsh scoring forces your brain to distill expansive, dreamlike reading into sharp, precise, and resonant prose.
