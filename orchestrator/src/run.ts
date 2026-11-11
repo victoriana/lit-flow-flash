@@ -185,15 +185,14 @@ function cleanProse(raw: string): string {
       .replace(/&#8216;|&lsquo;/g, "'").replace(/&#8220;|&#8221;|&ldquo;|&rdquo;/g, '"')
       .replace(/&#8212;|&mdash;/g, "—").replace(/&#8230;|&hellip;/g, "…")
       .replace(/&nbsp;/g, " ").replace(/&#\d+;/g, " ");
-  } else {
+   } else {
     const start = t.search(/\*\*\*\s*START OF THE PROJECT GUTENBERG/i);
     if (start !== -1) t = t.slice(start);
     t = t.replace(/^\s*\*\*\*[^\n]*\*\*\*\s*$/gm, " ");
   }
 
   t = t.replace(/(\w)-\r?\n(\w)/g, "$1$2");
-  t = t.replace(/\s*\r?\n\s*/g
-                  (m) => (/\n\s*\n/.test(m) ? "\n\n" : " "));
+  t = t.replace(/\s*\r?\n\s*/g, (m) => (/\n\s*\n/.test(m) ? "\n\n" : " "));
   t = t.replace(/([a-z])\d{1,3}\b/g, "$1");
   t = t.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
   return t;
