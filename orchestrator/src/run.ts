@@ -35,7 +35,7 @@ const CANON: Record<CanonId, { label: string; works: CanonWork[] }> = {
   goth: {
     label: "Goth Lit — Ann Radcliffe",
     works: [
-      { title: "A Sicilian Romance",        author: "Ann Radcliffe",       year: 1790, gutenbergId: 2542 },
+      { title: "A Sicilian Romance",        author: "Ann Radcliffe",       year: 1790, gutenbergId: 7371 },
       { title: "The Romance of the Forest", author: "Ann Radcliffe",       year: 1791, gutenbergId: 64701 },
       { title: "The Mysteries of Udolpho",  author: "Ann Radcliffe",       year: 1794, gutenbergId: 3268 },
     ],
