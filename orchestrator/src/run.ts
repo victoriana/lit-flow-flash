@@ -43,7 +43,7 @@ const CANON: Record<CanonId, { label: string; works: CanonWork[] }> = {
   glam: {
     label: "Glam Lit — F. Scott Fitzgerald",
     works: [
-      { title: "This Side of Paradise",     author: "F. Scott Fitzgerald", year: 1920, gutenbergId: 1680 },
+      { title: "This Side of Paradise", author: "F. Scott Fitzgerald", year: 1920, gutenbergId: 805 },
       { title: "The Beautiful and Damned",  author: "F. Scott Fitzgerald", year: 1922, gutenbergId: 9830 },
       { title: "The Great Gatsby",          author: "F. Scott Fitzgerald", year: 1925, gutenbergId: 64317 },
     ],
