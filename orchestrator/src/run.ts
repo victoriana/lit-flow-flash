@@ -280,7 +280,7 @@ function sampleExcerpt(prose: string, targetWords: number): string {
 
   const lo = Math.floor(sentences.length * 0.08);
   const hi = Math.max(lo + 1, Math.floor(sentences.length * 0.92));
-  let idx = lo + securePick(Array.from({ length: hi - lo }, (_, i) => i));
+    let idx = lo + securePick(Array.from({ length: hi - lo }, (_, i) => i));
 
   const out: string[] = [];
   let words = 0;
@@ -368,7 +368,7 @@ async function saveState(session: SavedSession): Promise<void> {
 }
 
 export async function main() {
-    // `npm run warm` / `node run.ts --warm` → fetch whole canon, then exit.
+  // `npm run warm` / `node run.ts --warm` → fetch whole canon, then exit.
   if (process.argv.includes("--warm")) {
     await warmCorpus();
     return;
@@ -406,10 +406,10 @@ export async function main() {
     if (useReal) {
       // --- Choose canon ---
       const canonAnswer = (
-        await rl.question("Canon — [f] Glam Lit (Fitzgerald) / [r] Goth Lit (Radcliffe) [default f]: ")).trim().toLowerCase();
+        await rl.question("Canon — [f] Glam Lit (Fitzgerald) / [r] Goth Lit (Radcliffe) [default f]: ")
+      ).trim().toLowerCase();
       const canonId: CanonId = canonAnswer.startsWith("r") ? "goth" : "glam";
 
-      
       // --- Show the 3 titles from that canon (for reference) ---
       const pool = CANON[canonId].works;
       console.log(`\n${CANON[canonId].label}:`);
