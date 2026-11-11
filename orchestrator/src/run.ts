@@ -8,7 +8,8 @@ import * as path from "node:path";
 const MODEL_CASCADE = [
   process.env.GEMINI_MODEL || "gemini-3.8-flash",
   "gemini-2.5-flash",
-  "gemini-2.5-flash-lite",
+  "gemini-3.5-flash-lite",
+  "gemini-flash-lite-latest", // catches any future 2.5-lite deprecation
 ];
 
 const USER_ID = process.env.USER_ID || "default";
