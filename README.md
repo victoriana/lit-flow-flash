@@ -23,19 +23,18 @@ See [sample-session2.md](sample-session.md) for a full read→write→judge tran
 
 ---
 
-## The 8-step flow
+## The 9-step flow
 
 The app enforces a strict sequential loop. Nothing is displayed to you until you have verified what you read:
 
-1. **Read hardcopy** — physical book, no prompt, no text shown by the app
-2. **Select exact title** — from all six works, deterministic order, no randomization
-3. **Paste opening fragment** — a few words that uniquely identify a location in the text
-4. **Paste closing fragment** — similarly unique, and must come after the opening
-5. **Echo confirmation** — app prints both fragments back to you
-5b. **Echo the sliced span** — app prints the actual text between your two boundary fragments
+1. **Select exact title** — one of the works given in *Corpus* section below, which you must already have read
+2. **Paste opening fragment** — a few words that uniquely identify a location in the text
+3. **Paste closing fragment** — similarly unique, and must come after the opening
+4. **Echo confirmation** — app prints both fragments back to you
+5. **Echo the sliced span** — app prints the actual text between your two boundary fragments
 6. **Select form** — epigram (15–25 words), vignette (30–50 words), drabble (exactly 100 words)
-7. **Write your piece** — book stays open on your desk, nothing displayed by the app
-8. **Evaluate** — LLM scores your submission across five metrics
+7. **Write your piece** — adhering to correct format after making syre the sliced span is read well
+8. **Evaluate** — LLM scores your submission across five metrics described below in *Scoring & State* for a total score out of 50.
 
 ## Corpus
 
