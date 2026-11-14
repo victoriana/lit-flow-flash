@@ -23,7 +23,7 @@ See [sample-session2.md](sample-session.md) for a full read→write→judge tran
 
 ---
 
-## The 9-step flow
+## The 8-step flow
 
 The app enforces a strict sequential loop. Nothing is displayed to you until you have verified what you read:
 
