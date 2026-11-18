@@ -38,27 +38,25 @@ The app enforces a strict sequential loop. Nothing is displayed to you until you
 
 ## Corpus
 
-The app draws verbatim excerpts from a curated canon of six public-domain novels, all available on Project Gutenberg US:
+The app draws verbatim excerpts from a curated canon of public-domain novels, all available on Project Gutenberg US:
 
 ### Glam Lit — F. Scott Fitzgerald
 
 | Title | Year | Pages | PG ID |
 |---|---|---|---|
 | *This Side of Paradise* | 1920 | 190 | [805](https://www.gutenberg.org/ebooks/805) |
-| *The Beautiful and Damned* | 1922 | 310 | [9830](https://www.gutenberg.org/ebooks/9830) |
 | *The Great Gatsby* | 1925 | 180 | [64317](https://www.gutenberg.org/ebooks/64317) |
 
 ### Goth Lit — Ann Radcliffe
 
 | Title | Year | Pages | PG ID |
 |---|---|---|---|
-| *A Sicilian Romance* | 1790 | 340 | [7371](https://www.gutenberg.org/ebooks/7371) |
 | *The Romance of the Forest* | 1791 | 400 | [64701](https://www.gutenberg.org/ebooks/64701) |
 | *The Mysteries of Udolpho* | 1794 | 650 | [3268](https://www.gutenberg.org/ebooks/3268) |
 
 When you select a title, the full text is fetched from Project Gutenberg, cleaned of boilerplate and formatting, and cached locally. **No passage is ever displayed to you.** The text is loaded silently into memory for unique-fragment matching only.
 
-The corpus is pre-warmed by running `npm run warm` once — this downloads and caches all six books (~6 MB total). After that, the app runs entirely without network access until the evaluation step.
+The corpus is pre-warmed by running `npm run warm` once — this downloads and caches all books. After that, the app runs entirely without network access until the evaluation step.
 
 ## Forms
 
