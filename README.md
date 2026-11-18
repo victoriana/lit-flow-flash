@@ -42,19 +42,19 @@ The app draws verbatim excerpts from a curated canon of six public-domain novels
 
 ### Glam Lit — F. Scott Fitzgerald
 
-| Title | Year | PG ID |
-|---|---|---|
-| *This Side of Paradise* | 1920 | 805 |
-| *The Beautiful and Damned* | 1922 | 9830 |
-| *The Great Gatsby* | 1925 | 64317 |
+| Title | Year | Pages | PG ID |
+|---|---|---|---|
+| *This Side of Paradise* | 1920 | 190 | [805](https://www.gutenberg.org/ebooks/805) |
+| *The Beautiful and Damned* | 1922 | 310 | [9830](https://www.gutenberg.org/ebooks/9830) |
+| *The Great Gatsby* | 1925 | 180 | [64317](https://www.gutenberg.org/ebooks/64317) |
 
 ### Goth Lit — Ann Radcliffe
 
-| Title | Year | PG ID |
-|---|---|---|
-| *A Sicilian Romance* | 1790 | 7371 |
-| *The Romance of the Forest* | 1791 | 64701 |
-| *The Mysteries of Udolpho* | 1794 | 3268 |
+| Title | Year | Pages | PG ID |
+|---|---|---|---|
+| *A Sicilian Romance* | 1790 | 340 | [7371](https://www.gutenberg.org/ebooks/7371) |
+| *The Romance of the Forest* | 1791 | 400 | [64701](https://www.gutenberg.org/ebooks/64701) |
+| *The Mysteries of Udolpho* | 1794 | 650 | [3268](https://www.gutenberg.org/ebooks/3268) |
 
 When you select a title, the full text is fetched from Project Gutenberg, cleaned of boilerplate and formatting, and cached locally. **No passage is ever displayed to you.** The text is loaded silently into memory for unique-fragment matching only.
 
