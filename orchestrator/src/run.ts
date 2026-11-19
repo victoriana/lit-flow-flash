@@ -4,7 +4,7 @@ import { stdin as input, stdout as output } from "node:process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadDefaultState, computeTrends, type TrendReport } from "./trends.js";
+import * as trendsMod from "./trends.js";
 
 // Model cascade: Primary model down to high-availability backups
 const MODEL_CASCADE = [
@@ -393,59 +393,127 @@ async function saveState(session: SavedSession): Promise<void> {
   console.log(`\nSession saved to .state/${session.userId}.json`);
 }
 
-function buildFallbackTrendComment(trends: TrendReport, roundsThisRun: number): string {
-  const deltaText =
-    trends.deltaFromPrev === null
-      ? `baseline of ${trends.latestScore}/50`
-      : `${trends.deltaFromPrev >= 0 ? "+" : ""}${trends.deltaFromPrev} vs. previous session (${trends.latestScore}/50)`;
-
-  return (
-    `Across ${trends.sessionCount} logged session(s) (${roundsThisRun} completed this run), your rolling average is ${trends.rollingAvg}/50 with a ${deltaText}. ` +
-    `Your strongest metric is ${trends.strongest.label} (${trends.strongest.avg}/10), while ${trends.weakest.label} (${trends.weakest.avg}/10) is your clearest focus for next time.`
-  );
+async function loadSessionsFallback(): Promise<SavedSession[]> {
+  try {
+    const raw = await fs.readFile(path.join(process.cwd(), ".state", `${USER_ID}.json`), "utf-8");
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed;
+    if (Array.isArray(parsed?.sessions)) return parsed.sessions;
+    if (Array.isArray(parsed?.history)) return parsed.history;
+    return [];
+  } catch {
+    return [];
+  }
 }
 
-async function printClosingTrendComment(ai: GoogleGenAI, roundsThisRun: number): Promise<void> {
-  const sessions = await loadDefaultState();
-  const trends = computeTrends(sessions);
+function summarizeSessionsFallback(sessions: SavedSession[]) {
+  const totals = sessions.map((s) =>
+    typeof s.evaluation?.total_score === "number"
+      ? s.evaluation.total_score
+      : (s.evaluation?.style_alignment ?? 0) +
+        (s.evaluation?.motif_reuse ?? 0) +
+        (s.evaluation?.precision ?? 0) +
+        (s.evaluation?.concision ?? 0) +
+        (s.evaluation?.originality ?? 0)
+  );
+  const count = totals.length;
+  const latestScore = totals[count - 1];
+  const prevScore = count > 1 ? totals[count - 2] : null;
+  const avg = Number((totals.reduce((a, b) => a + b, 0) / count).toFixed(1));
 
-  if (!trends) {
-    console.log("\nClosing note: No sessions found in .state/default.json yet.");
+  const metricKeys = [
+    ["Style Alignment", "style_alignment"],
+    ["Motif Reuse", "motif_reuse"],
+    ["Precision", "precision"],
+    ["Concision", "concision"],
+    ["Originality", "originality"],
+  ] as const;
+
+  const metrics = metricKeys
+    .map(([label, key]) => {
+      const vals = sessions.map((s) => Number(s.evaluation?.[key] ?? 0));
+      const mAvg = Number((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1));
+      return { label, avg: mAvg };
+    })
+    .sort((a, b) => a.avg - b.avg);
+
+  return {
+    sessionCount: count,
+    latestScore,
+    rollingAvg: avg,
+    deltaFromPrev: prevScore !== null ? latestScore - prevScore : null,
+    weakest: metrics[0],
+    strongest: metrics[metrics.length - 1],
+    recentFeedback: sessions
+      .slice(-3)
+      .map((s) => s.evaluation?.feedback)
+      .filter((f): f is string => Boolean(f)),
+  };
+}
+
+async function printClosingTrendComment(ai: GoogleGenAI | null, roundsThisRun: number): Promise<void> {
+  const mod = trendsMod as Record<string, any>;
+  const loadFn = typeof mod.loadDefaultState === "function" ? mod.loadDefaultState : mod.loadHistory;
+  const trendFn = typeof mod.computeTrends === "function" ? mod.computeTrends : mod.analyzeTrends;
+
+  const sessions: SavedSession[] =
+    typeof loadFn === "function" ? await loadFn() : await loadSessionsFallback();
+
+  if (!sessions || sessions.length === 0) {
+    console.log(`\nClosing note: No sessions found in .state/${USER_ID}.json yet.`);
     return;
   }
 
-  const fallback = buildFallbackTrendComment(trends, roundsThisRun);
+  const rawTrends =
+    typeof trendFn === "function" ? trendFn(sessions) : summarizeSessionsFallback(sessions);
+
+  if (!rawTrends) {
+    console.log(`\nClosing note: No trend data available in .state/${USER_ID}.json yet.`);
+    return;
+  }
+
+  const count = rawTrends.sessionCount ?? rawTrends.totalSessions ?? sessions.length;
+  const latest = rawTrends.latestScore ?? 0;
+  const avg = rawTrends.rollingAvg ?? rawTrends.recentAverage ?? rawTrends.overallAverage ?? 0;
+  const delta = rawTrends.deltaFromPrev ?? null;
+  const strongest = rawTrends.strongest ?? rawTrends.strongestMetric;
+  const weakest = rawTrends.weakest ?? rawTrends.weakestMetric;
+  const recentFeedback = rawTrends.recentFeedback ?? rawTrends.recentNotes ?? [];
+
+  const deltaText =
+    typeof delta === "number"
+      ? `${delta >= 0 ? "+" : ""}${delta} vs. previous session (${latest}/50)`
+      : `latest ${latest}/50`;
+
+  const fallback =
+    `Across ${count} logged session(s) (${roundsThisRun} completed this run), your average is ${avg}/50 with ${deltaText}.` +
+    (strongest && weakest
+      ? ` Strongest: ${strongest.label ?? strongest.name} (${strongest.avg}/10); focus next on ${weakest.label ?? weakest.name} (${weakest.avg}/10).`
+      : "");
+
   let comment = fallback;
 
-  const prompt = `
+  if (ai) {
+    const prompt = `
 You are delivering a concise, fact-based closing trend remark as the user exits lit-flow-flash.
-Base every statement strictly on the tracking data from .state/default.json:
+Base every statement strictly on the tracking data from .state/${USER_ID}.json:
+${JSON.stringify({ count, roundsThisRun, latest, avg, delta, strongest, weakest, recentFeedback }, null, 2)}
 
-- Total sessions in store: ${trends.sessionCount}
-- Rounds completed in this run: ${roundsThisRun}
-- Latest score: ${trends.latestScore}/50
-- Rolling 5-session average: ${trends.rollingAvg}/50
-- Delta from previous session: ${trends.deltaFromPrev === null ? "N/A (single session)" : `${trends.deltaFromPrev >= 0 ? "+" : ""}${trends.deltaFromPrev}`}
-- Strongest metric: ${trends.strongest.label} (${trends.strongest.avg}/10)
-- Weakest metric: ${trends.weakest.label} (${trends.weakest.avg}/10)
-- Form counts: ${JSON.stringify(trends.formCounts)}
-- Recent feedback:
-${trends.recentFeedback.map((f, i) => `  ${i + 1}. ${f}`).join("\n") || "  None"}
-
-Write 2–3 direct sentences remarking on the writer's trajectory across sessions, calling out any recurring strength or flaw, and naming one concrete target for the next session. Avoid filler or invented figures.
+Write 2–3 direct sentences remarking on the user's trend across sessions and naming one concrete focus for next time. Do not invent numbers or use fluff.
 `;
 
-  try {
-    const res = await generateResilientContent(ai, { contents: prompt }, 1);
-    if (res.text?.trim()) {
-      comment = res.text.trim();
+    try {
+      const res = await generateResilientContent(ai, { contents: prompt }, 1);
+      if (res.text?.trim()) {
+        comment = res.text.trim();
+      }
+    } catch {
+      // Keep deterministic fallback if offline or API fails on exit
     }
-  } catch {
-    // Fall back to deterministic summary if offline or API fails on exit
   }
 
   console.log("\n==========================================");
-  console.log(" CLOSING TREND COMMENT (.state/default.json)");
+  console.log(` CLOSING TREND COMMENT (.state/${USER_ID}.json)`);
   console.log("==========================================");
   console.log(comment);
   console.log("==========================================");
@@ -634,22 +702,26 @@ Return ONLY a JSON object matching this exact schema:
 }
 
 export async function main() {
-  if (process.argv.includes("--warm")) {
-    await warmCorpus();
-    return;
-  }
-
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.error("Error: GEMINI_API_KEY environment variable is missing.");
-    process.exit(1);
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
+  const isWarm = process.argv.includes("--warm");
   const rl = readline.createInterface({ input, output });
+  let ai: GoogleGenAI | null = null;
   let roundsCompletedThisRun = 0;
 
   try {
+    if (isWarm) {
+      await warmCorpus();
+      return;
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.error("Error: GEMINI_API_KEY environment variable is missing.");
+      process.exitCode = 1;
+      return;
+    }
+
+    ai = new GoogleGenAI({ apiKey });
+
     while (true) {
       const completed = await runSingleSession(ai, rl, roundsCompletedThisRun + 1);
       if (completed) {
@@ -667,7 +739,9 @@ export async function main() {
   } catch (error: any) {
     console.error("\nExecution failed:", error?.message || error);
   } finally {
-    await printClosingTrendComment(ai, roundsCompletedThisRun);
+    if (!isWarm) {
+      await printClosingTrendComment(ai, roundsCompletedThisRun);
+    }
     rl.close();
   }
 }
