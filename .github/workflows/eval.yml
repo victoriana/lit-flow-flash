@@ -23,4 +23,5 @@ jobs:
         run: pip install -r engine/requirements.txt
       - name: Run evaluation batch
         working-directory: eval-harness
+        env: GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python -m engine.evaluator
