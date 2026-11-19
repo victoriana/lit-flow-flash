@@ -14,6 +14,7 @@ const MODEL_CASCADE = [
   "gemini-flash-lite-latest", // catches any future 2.5-lite deprecation
 ];
 
+const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 25_000);
 const USER_ID = process.env.USER_ID || "default";
 
 // ---------------------------------------------------------------------------
@@ -107,10 +108,31 @@ interface SavedSession {
   gutenbergId?: number;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  if (!Number.isFinite(ms) || ms <= 0) return promise;
+
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Timeout after ${(ms / 1000).toFixed(1)}s (${label})`));
+    }, ms);
+
+    promise.then(
+      (val) => {
+        clearTimeout(timer);
+        resolve(val);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
 async function generateResilientContent(
   ai: GoogleGenAI,
   params: Omit<Parameters<typeof ai.models.generateContent>[0], "model">,
-  maxRetriesPerModel = 2
+  maxRetriesPerModel = 1
 ) {
   let lastError: any = null;
 
@@ -119,29 +141,42 @@ async function generateResilientContent(
     let delayMs = 1000;
 
     while (attempt <= maxRetriesPerModel) {
+      const startedAt = Date.now();
       try {
-        if (attempt > 0 || model !== MODEL_CASCADE[0]) {
-          console.warn(`\n[System] Using model: ${model} (Attempt ${attempt + 1})`);
-        }
+        console.log(
+          `[LLM] Calling ${model} (attempt ${attempt + 1}/${maxRetriesPerModel + 1}, timeout ${
+            LLM_TIMEOUT_MS / 1000
+          }s)...`
+        );
 
-        const response = await ai.models.generateContent({
-          ...params,
-          model,
-        });
+        const response = await withTimeout(
+          ai.models.generateContent({
+            ...params,
+            model,
+          }),
+          LLM_TIMEOUT_MS,
+          model
+        );
 
+        const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+        console.log(`[LLM] ${model} responded in ${elapsed}s.`);
         return response;
       } catch (err: any) {
         lastError = err;
+        const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+        const status = err?.status ?? err?.error?.code ?? "unknown";
+        const msg = err?.message || String(err);
+
+        console.warn(`[LLM] ${model} failed after ${elapsed}s (status=${status}): ${msg}`);
+
         const is503 =
-          err?.status === 503 ||
-          err?.error?.code === 503 ||
-          err?.message?.includes("503");
+          status === 503 ||
+          msg.includes("503") ||
+          msg.toLowerCase().includes("unavailable");
 
         if (is503 && attempt < maxRetriesPerModel) {
           attempt++;
-          console.warn(
-            `\n[503 Busy] ${model} unavailable. Retrying in ${delayMs / 1000}s...`
-          );
+          console.warn(`[503 Busy] Retrying ${model} in ${delayMs / 1000}s...`);
           await new Promise((resolve) => setTimeout(resolve, delayMs));
           delayMs *= 2;
         } else {
@@ -503,7 +538,7 @@ Write 2–3 direct sentences remarking on the user's trend across sessions and n
 `;
 
     try {
-      const res = await generateResilientContent(ai, { contents: prompt }, 1);
+      const res = await generateResilientContent(ai, { contents: prompt }, 0);
       if (res.text?.trim()) {
         comment = res.text.trim();
       }
