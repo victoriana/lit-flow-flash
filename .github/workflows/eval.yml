@@ -25,4 +25,4 @@ jobs:
         working-directory: eval-harness
         env: 
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: python -m engine.evaluator
+        run: python -m engine.evaluator ../datasets/gold_standard.json
