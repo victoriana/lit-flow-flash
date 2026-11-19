@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/run.ts",
-    "warm": "tsx src/run.ts --warm"
+    "warm": "tsx src/run.ts --warm",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
