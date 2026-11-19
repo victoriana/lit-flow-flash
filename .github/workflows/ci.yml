@@ -2,6 +2,7 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore: ['**.md']
   pull_request:
 
 jobs:
@@ -20,7 +21,7 @@ jobs:
           go-version-file: ${{ matrix.dir }}/go.mod
       - run: go build ./...
       - run: go vet ./...
-      - run: go test ./... || true
+      - run: go test ./...
 
   typescript:
     runs-on: ubuntu-latest
