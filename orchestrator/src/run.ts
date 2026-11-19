@@ -521,20 +521,18 @@ async function printClosingTrendComment(
   const localStats = summarizeRunSessions(runSessions);
 
   const count = localStats.sessionCount;
-  const latest = localStats.latestScore;
   const avg = localStats.rollingAvg;
-  const delta = localStats.deltaFromPrev;
   const strongest = modTrends?.strongest ?? modTrends?.strongestMetric ?? localStats.strongest;
   const weakest = modTrends?.weakest ?? modTrends?.weakestMetric ?? localStats.weakest;
 
   const progressionText = localStats.scoreProgression.map((s) => `${s}/50`).join(" -> ");
-  const deltaText =
-    typeof delta === "number"
-      ? `${delta >= 0 ? "+" : ""}${delta} vs. prior round (${latest}/50)`
-      : `single round (${latest}/50)`;
+  const runScope =
+    count === 1
+      ? `1 round: ${progressionText}`
+      : `${count} rounds: ${progressionText}`;
 
   const fallback =
-    `In this run (${count} round${count === 1 ? "" : "s"}: ${progressionText}), your session average is ${avg}/50 (${deltaText}). ` +
+    `In this run (${runScope}), your session average is ${avg}/50. ` +
     `Strongest in this run: ${strongest.label ?? strongest.name} (${strongest.avg}/10); ` +
     `focus next on ${weakest.label ?? weakest.name} (${weakest.avg}/10).`;
 
@@ -549,7 +547,6 @@ ${JSON.stringify(
     roundsInThisRun: count,
     scoreProgression: localStats.scoreProgression,
     runAverage: avg,
-    deltaFromPreviousRound: delta,
     strongestMetricThisRun: strongest,
     weakestMetricThisRun: weakest,
     roundByRoundNotes: localStats.recentFeedback,
