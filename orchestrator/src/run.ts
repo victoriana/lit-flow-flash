@@ -3,6 +3,8 @@ import * as readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+import { loadDefaultState, computeTrends, type TrendReport } from "./trends.js";
 
 // Model cascade: Primary model down to high-availability backups
 const MODEL_CASCADE = [
@@ -186,7 +188,7 @@ function cleanProse(raw: string): string {
       .replace(/&#8216;|&lsquo;/g, "'").replace(/&#8220;|&#8221;|&ldquo;|&rdquo;/g, '"')
       .replace(/&#8212;|&mdash;/g, "—").replace(/&#8230;|&hellip;/g, "…")
       .replace(/&nbsp;/g, " ").replace(/&#\d+;/g, " ");
-   } else {
+  } else {
     const start = t.search(/\*\*\*\s*START OF THE PROJECT GUTENBERG/i);
     if (start !== -1) t = t.slice(start);
     t = t.replace(/^\s*\*\*\*[^\n]*\*\*\*\s*$/gm, " ");
@@ -238,19 +240,6 @@ async function loadCorpus(work: CanonWork): Promise<string> {
   return cleaned;
 }
 
-/** Split text into sentences for slicing. */
-function splitSentences(text: string): string[] {
-  return text
-    .split(/(?<=[.!?…])["'"]?\s+(?=["'"]?[A-Z—])/g)
-    .map((s) => s.trim())
-    .filter((s) => countWords(s) >= 4);
-}
-
-/**
- * Slice the passage between two boundary fragments.
- * Returns the text between the sentence containing the opening fragment
- * and the sentence containing the closing fragment.
- */
 function sliceSpan(prose: string, openFragment: string, closeFragment: string): string {
   const normalized = normalizeForMatch(prose);
   const open = normalizeForMatch(openFragment);
@@ -263,26 +252,6 @@ function sliceSpan(prose: string, openFragment: string, closeFragment: string): 
     return "";
   }
 
-  // Slice from the start of the opening fragment to the end of the closing fragment
-  // Use the normalized index to locate in the raw text by finding the same position
-  const rawStart = prose.indexOf(openFragment.replace(/\s+/g, " ").trim(), Math.max(0, openIdx - 50));
-  const rawEnd = prose.indexOf(closeFragment.replace(/\s+/g, " ").trim(), Math.max(0, closeIdx - 50));
-
-  // If exact match fails in raw text, do a best-effort: use normalized lengths as offset
-  const openLen = normalizeForMatch(openFragment).length;
-  const closeLen = normalizeForMatch(closeFragment).length;
-
-  // Find the actual position in raw prose by searching around the normalized index
-  let actualStart = openIdx;
-  let actualEnd = closeIdx + closeLen;
-
-  // Adjust for normalization (lowercase + collapsed spaces) by finding the closest match
-  // Simplest reliable approach: search for the fragment in the raw text
-  const openSearch = normalizeForMatch(prose.slice(0, openIdx + openLen + 20));
-  const rawOpen = prose.slice(0, openIdx + openLen + 20);
-  const rawClose = prose.slice(0, closeIdx + closeLen + 20);
-
-  // Use a more robust approach: find the fragment in the raw text
   const rawOpenFragment = openFragment.trim().replace(/\s+/g, "\\s+");
   const rawCloseFragment = closeFragment.trim().replace(/\s+/g, "\\s+");
 
@@ -352,7 +321,7 @@ async function promptUniqueFragment(
 }
 
 // ---------------------------------------------------------------------------
-// TITLE SELECTION
+// TITLE & FORM SELECTION
 // ---------------------------------------------------------------------------
 
 async function promptTitleSelection(rl: readline.Interface): Promise<CanonWork> {
@@ -380,10 +349,6 @@ async function promptTitleSelection(rl: readline.Interface): Promise<CanonWork> 
   }
 }
 
-// ---------------------------------------------------------------------------
-// FORM SELECTION
-// ---------------------------------------------------------------------------
-
 async function promptFormChoice(rl: readline.Interface): Promise<FormType> {
   const envForm = process.env.FORM?.toLowerCase() as FormType;
   if (envForm && FORMS[envForm]) {
@@ -406,7 +371,7 @@ async function promptFormChoice(rl: readline.Interface): Promise<FormType> {
 }
 
 // ---------------------------------------------------------------------------
-// SAVE STATE
+// SAVE STATE & CLOSING TREND COMMENT
 // ---------------------------------------------------------------------------
 
 async function saveState(session: SavedSession): Promise<void> {
@@ -426,6 +391,64 @@ async function saveState(session: SavedSession): Promise<void> {
   existing.push(session);
   await fs.writeFile(filePath, JSON.stringify(existing, null, 2), "utf-8");
   console.log(`\nSession saved to .state/${session.userId}.json`);
+}
+
+function buildFallbackTrendComment(trends: TrendReport, roundsThisRun: number): string {
+  const deltaText =
+    trends.deltaFromPrev === null
+      ? `baseline of ${trends.latestScore}/50`
+      : `${trends.deltaFromPrev >= 0 ? "+" : ""}${trends.deltaFromPrev} vs. previous session (${trends.latestScore}/50)`;
+
+  return (
+    `Across ${trends.sessionCount} logged session(s) (${roundsThisRun} completed this run), your rolling average is ${trends.rollingAvg}/50 with a ${deltaText}. ` +
+    `Your strongest metric is ${trends.strongest.label} (${trends.strongest.avg}/10), while ${trends.weakest.label} (${trends.weakest.avg}/10) is your clearest focus for next time.`
+  );
+}
+
+async function printClosingTrendComment(ai: GoogleGenAI, roundsThisRun: number): Promise<void> {
+  const sessions = await loadDefaultState();
+  const trends = computeTrends(sessions);
+
+  if (!trends) {
+    console.log("\nClosing note: No sessions found in .state/default.json yet.");
+    return;
+  }
+
+  const fallback = buildFallbackTrendComment(trends, roundsThisRun);
+  let comment = fallback;
+
+  const prompt = `
+You are delivering a concise, fact-based closing trend remark as the user exits lit-flow-flash.
+Base every statement strictly on the tracking data from .state/default.json:
+
+- Total sessions in store: ${trends.sessionCount}
+- Rounds completed in this run: ${roundsThisRun}
+- Latest score: ${trends.latestScore}/50
+- Rolling 5-session average: ${trends.rollingAvg}/50
+- Delta from previous session: ${trends.deltaFromPrev === null ? "N/A (single session)" : `${trends.deltaFromPrev >= 0 ? "+" : ""}${trends.deltaFromPrev}`}
+- Strongest metric: ${trends.strongest.label} (${trends.strongest.avg}/10)
+- Weakest metric: ${trends.weakest.label} (${trends.weakest.avg}/10)
+- Form counts: ${JSON.stringify(trends.formCounts)}
+- Recent feedback:
+${trends.recentFeedback.map((f, i) => `  ${i + 1}. ${f}`).join("\n") || "  None"}
+
+Write 2–3 direct sentences remarking on the writer's trajectory across sessions, calling out any recurring strength or flaw, and naming one concrete target for the next session. Avoid filler or invented figures.
+`;
+
+  try {
+    const res = await generateResilientContent(ai, { contents: prompt }, 1);
+    if (res.text?.trim()) {
+      comment = res.text.trim();
+    }
+  } catch {
+    // Fall back to deterministic summary if offline or API fails on exit
+  }
+
+  console.log("\n==========================================");
+  console.log(" CLOSING TREND COMMENT (.state/default.json)");
+  console.log("==========================================");
+  console.log(comment);
+  console.log("==========================================");
 }
 
 // ---------------------------------------------------------------------------
@@ -452,97 +475,91 @@ async function warmCorpus(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// MAIN
+// SINGLE SESSION & EXIT LOOP
 // ---------------------------------------------------------------------------
 
-export async function main() {
-  if (process.argv.includes("--warm")) {
-    await warmCorpus();
-    return;
+function wantsExit(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return normalized === "exit" || normalized === "quit" || normalized === ":q";
+}
+
+async function runSingleSession(
+  ai: GoogleGenAI,
+  rl: readline.Interface,
+  roundNumber: number
+): Promise<boolean> {
+  console.log("\n==========================================");
+  console.log(`      L I T - F L O W - F L A S H  (R${roundNumber})`);
+  console.log("==========================================");
+
+  // Step 2: Select exact title
+  const work = await promptTitleSelection(rl);
+
+  // Step 1: Load corpus (no text displayed)
+  console.log(`\nLoading "${work.title}" (${work.year})...`);
+  const prose = await loadCorpus(work);
+  console.log(`✓ Corpus loaded (${countWords(prose).toLocaleString()} words). No text will be displayed.`);
+
+  // Steps 3 & 4: Boundary fragments — unique pattern match against full book
+  const openFragment = await promptUniqueFragment(rl, prose, "opening sentence of the section you read");
+  const openResult = uniqueMatch(prose, openFragment);
+  const closeFragment = await promptUniqueFragment(
+    rl,
+    prose,
+    "closing sentence of the section you read",
+    openResult.index
+  );
+
+  // Step 5: Echo back both boundary fragments to confirm
+  console.log("\n--- BOUNDARY CONFIRMATION ---");
+  console.log(`Opening: "${openFragment}"`);
+  console.log(`Closing: "${closeFragment}"`);
+  console.log("-----------------------------");
+  const confirmed = (await rl.question("Confirm these boundaries? [Y/n]: "))
+    .trim()
+    .toLowerCase();
+  if (confirmed === "n" || confirmed === "no") {
+    console.log("Cancelled round.");
+    return false;
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.error("Error: GEMINI_API_KEY environment variable is missing.");
-    process.exit(1);
+  // Step 5b: Echo the sliced span between the boundaries
+  const passage = sliceSpan(prose, openFragment, closeFragment);
+  if (!passage || countWords(passage) < 10) {
+    console.error("Could not extract a valid span from your boundaries. Widen your selection and try again.");
+    return false;
   }
 
-  const ai = new GoogleGenAI({ apiKey });
-  const rl = readline.createInterface({ input, output });
+  console.log(`\n--- YOUR SECTION (${countWords(passage)} words) ---`);
+  console.log(passage);
+  console.log("--------------------------------------\n");
 
-  try {
-    console.log("==========================================");
-    console.log("         L I T - F L O W - F L A S H     ");
-    console.log("==========================================");
+  // Step 6: Select form
+  const formType = await promptFormChoice(rl);
+  const formConfig = FORMS[formType];
+  console.log(`\nForm selected: ${formConfig.name} (${formConfig.description})`);
 
-    // Step 2: Select exact title
-    const work = await promptTitleSelection(rl);
+  // Step 7: Write your piece (book may stay open)
+  let submission = "";
+  let wordCount = 0;
 
-    // Step 1: Load corpus (no text displayed)
-    console.log(`\nLoading "${work.title}" (${work.year})...`);
-    const prose = await loadCorpus(work);
-        console.log(`✓ Corpus loaded (${countWords(prose).toLocaleString()} words). No text will be displayed.`);
+  while (true) {
+    submission = (await rl.question(`\nDraft your ${formConfig.name}:\n> `)).trim();
+    wordCount = countWords(submission);
 
-    // Steps 3 & 4: Boundary fragments — unique pattern match against full book
-    const openFragment = await promptUniqueFragment(rl, prose, "opening sentence of the section you read");
-    const openResult = uniqueMatch(prose, openFragment);
-    const closeFragment = await promptUniqueFragment(
-      rl,
-      prose,
-      "closing sentence of the section you read",
-      openResult.index
-    );
-
-    // Step 5: Echo back both boundary fragments to confirm
-    console.log("\n--- BOUNDARY CONFIRMATION ---");
-    console.log(`Opening: "${openFragment}"`);
-    console.log(`Closing: "${closeFragment}"`);
-    console.log("-----------------------------");
-    const confirmed = (await rl.question("Confirm these boundaries? [Y/n]: "))
-      .trim()
-      .toLowerCase();
-    if (confirmed === "n" || confirmed === "no") {
-      console.log("Cancelled. Re-run to start over.");
-      return;
+    if (formConfig.minWords === formConfig.maxWords) {
+      if (wordCount === formConfig.minWords) break;
+      console.log(`Word count error: Must be exactly ${formConfig.minWords} words (you wrote ${wordCount}). Try again.`);
+    } else {
+      if (wordCount >= formConfig.minWords && wordCount <= formConfig.maxWords) break;
+      console.log(`Word count error: Must be between ${formConfig.minWords} and ${formConfig.maxWords} words (you wrote ${wordCount}). Try again.`);
     }
+  }
 
-    // Step 5b: Echo the sliced span between the boundaries
-    const passage = sliceSpan(prose, openFragment, closeFragment);
-    if (!passage || countWords(passage) < 10) {
-      console.error("Could not extract a valid span from your boundaries. Re-run and widen your selection.");
-      return;
-    }
+  // Step 8: Evaluate
+  console.log("\nEvaluating submission...");
 
-    console.log(`\n--- YOUR SECTION (${countWords(passage)} words) ---`);
-    console.log(passage);
-    console.log("--------------------------------------\n");
-
-    // Step 6: Select form
-    const formType = await promptFormChoice(rl);
-    const formConfig = FORMS[formType];
-    console.log(`\nForm selected: ${formConfig.name} (${formConfig.description})`);
-
-    // Step 7: Write your piece (book may stay open)
-    let submission = "";
-    let wordCount = 0;
-
-    while (true) {
-      submission = (await rl.question(`\nDraft your ${formConfig.name}:\n> `)).trim();
-      wordCount = countWords(submission);
-
-      if (formConfig.minWords === formConfig.maxWords) {
-        if (wordCount === formConfig.minWords) break;
-        console.log(`Word count error: Must be exactly ${formConfig.minWords} words (you wrote ${wordCount}). Try again.`);
-      } else {
-        if (wordCount >= formConfig.minWords && wordCount <= formConfig.maxWords) break;
-        console.log(`Word count error: Must be between ${formConfig.minWords} and ${formConfig.maxWords} words (you wrote ${wordCount}). Try again.`);
-      }
-    }
-
-    // Step 8: Evaluate
-    console.log("\nEvaluating submission...");
-
-    const judgePrompt = `
+  const judgePrompt = `
 You are an uncompromising literary critic evaluating a student's flash-writing exercise.
 
 SOURCE PASSAGE (VERBATIM PUBLIC-DOMAIN TEXT — the exact section the student read on paper):
@@ -578,48 +595,82 @@ Return ONLY a JSON object matching this exact schema:
 }
 `;
 
-    const evalResponse = await generateResilientContent(ai, {
-      contents: judgePrompt,
-      config: { responseMimeType: "application/json" },
-    });
+  const evalResponse = await generateResilientContent(ai, {
+    contents: judgePrompt,
+    config: { responseMimeType: "application/json" },
+  });
 
-    const evalText = evalResponse.text?.trim() || "{}";
-    const evaluation: EvaluationScore = JSON.parse(evalText);
+  const evalText = evalResponse.text?.trim() || "{}";
+  const evaluation: EvaluationScore = JSON.parse(evalText);
 
-    console.log("\n==========================================");
-    console.log(` SCORE: ${evaluation.total_score} / 50`);
-    console.log("==========================================");
-    console.log(`Style Alignment: ${evaluation.style_alignment}/10`);
-    console.log(`Motif Reuse:     ${evaluation.motif_reuse}/10`);
-    console.log(`Precision:       ${evaluation.precision}/10`);
-    console.log(`Concision:       ${evaluation.concision}/10`);
-    console.log(`Originality:     ${evaluation.originality}/10`);
-    console.log("\nFEEDBACK:");
-    console.log(evaluation.feedback);
-    console.log("==========================================");
+  console.log("\n==========================================");
+  console.log(` SCORE: ${evaluation.total_score} / 50`);
+  console.log("==========================================");
+  console.log(`Style Alignment: ${evaluation.style_alignment}/10`);
+  console.log(`Motif Reuse:     ${evaluation.motif_reuse}/10`);
+  console.log(`Precision:       ${evaluation.precision}/10`);
+  console.log(`Concision:       ${evaluation.concision}/10`);
+  console.log(`Originality:     ${evaluation.originality}/10`);
+  console.log("\nFEEDBACK:");
+  console.log(evaluation.feedback);
+  console.log("==========================================");
 
-    await saveState({
-      timestamp: new Date().toISOString(),
-      userId: USER_ID,
-      form: formType,
-      authorOrWork: `"${work.title}" (${work.year}) — ${work.author} · VERBATIM`,
-      passage,
-      openingSentence: openFragment,
-      closingSentence: closeFragment,
-      userSubmission: submission,
-      wordCount,
-      evaluation,
-      sourceMode: "verbatim-canon",
-      gutenbergId: work.gutenbergId,
-    });
+  await saveState({
+    timestamp: new Date().toISOString(),
+    userId: USER_ID,
+    form: formType,
+    authorOrWork: `"${work.title}" (${work.year}) — ${work.author} · VERBATIM`,
+    passage,
+    openingSentence: openFragment,
+    closingSentence: closeFragment,
+    userSubmission: submission,
+    wordCount,
+    evaluation,
+    sourceMode: "verbatim-canon",
+    gutenbergId: work.gutenbergId,
+  });
+
+  return true;
+}
+
+export async function main() {
+  if (process.argv.includes("--warm")) {
+    await warmCorpus();
+    return;
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error("Error: GEMINI_API_KEY environment variable is missing.");
+    process.exit(1);
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+  const rl = readline.createInterface({ input, output });
+  let roundsCompletedThisRun = 0;
+
+  try {
+    while (true) {
+      const completed = await runSingleSession(ai, rl, roundsCompletedThisRun + 1);
+      if (completed) {
+        roundsCompletedThisRun++;
+      }
+
+      const nextAction = (
+        await rl.question('\nPress [Enter] for another round, or type "exit" to quit: ')
+      ).trim();
+
+      if (wantsExit(nextAction)) {
+        break;
+      }
+    }
   } catch (error: any) {
     console.error("\nExecution failed:", error?.message || error);
   } finally {
+    await printClosingTrendComment(ai, roundsCompletedThisRun);
     rl.close();
   }
 }
-
-import { fileURLToPath } from "node:url";
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main();
