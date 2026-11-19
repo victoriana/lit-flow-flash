@@ -108,6 +108,34 @@ interface SavedSession {
   gutenbergId?: number;
 }
 
+// ---------------------------------------------------------------------------
+// GRACEFUL EXIT HELPERS
+// ---------------------------------------------------------------------------
+
+class ExitRequestedError extends Error {
+  constructor() {
+    super("User requested exit");
+    this.name = "ExitRequestedError";
+  }
+}
+
+function wantsExit(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return normalized === "exit" || normalized === "quit" || normalized === ":q";
+}
+
+async function promptLine(rl: readline.Interface, promptText: string): Promise<string> {
+  const answer = await rl.question(promptText);
+  if (wantsExit(answer)) {
+    throw new ExitRequestedError();
+  }
+  return answer.trim();
+}
+
+// ---------------------------------------------------------------------------
+// GEMINI CALLS WITH TIMEOUT & FALLBACK
+// ---------------------------------------------------------------------------
+
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   if (!Number.isFinite(ms) || ms <= 0) return promise;
 
@@ -327,9 +355,10 @@ async function promptUniqueFragment(
   afterIndex?: number
 ): Promise<string> {
   while (true) {
-    const fragment = (
-      await rl.question(`\nPaste ${label} (a few words that appear exactly once): `)
-    ).trim();
+    const fragment = await promptLine(
+      rl,
+      `\nPaste ${label} (a few words that appear once, or type "exit"): `
+    );
 
     if (!fragment) {
       console.log("Empty input. Try again.");
@@ -368,7 +397,7 @@ async function promptTitleSelection(rl: readline.Interface): Promise<CanonWork> 
   });
 
   while (true) {
-    const answer = (await rl.question("\nSelect exact title: ")).trim();
+    const answer = await promptLine(rl, '\nSelect exact title (or type "exit"): ');
 
     const byNumber = Number(answer);
     if (Number.isInteger(byNumber) && byNumber >= 1 && byNumber <= allWorks.length) {
@@ -380,7 +409,7 @@ async function promptTitleSelection(rl: readline.Interface): Promise<CanonWork> 
     );
     if (found) return found;
 
-    console.log("Title not found. Type the exact title as shown above.");
+    console.log('Title not found. Type the exact title/number shown above, or "exit".');
   }
 }
 
@@ -397,16 +426,16 @@ async function promptFormChoice(rl: readline.Interface): Promise<FormType> {
   console.log("  3) Drabble  - Exactly 100 words (complete miniature story)");
 
   while (true) {
-    const answer = (await rl.question("\nSelect [1-3] (default: 2): ")).trim();
+    const answer = await promptLine(rl, '\nSelect [1-3] (default: 2, or type "exit"): ');
     if (answer === "1" || answer.toLowerCase() === "epigram") return "epigram";
     if (answer === "" || answer === "2" || answer.toLowerCase() === "vignette") return "vignette";
     if (answer === "3" || answer.toLowerCase() === "drabble") return "drabble";
-    console.log("Invalid choice. Please select 1, 2, or 3.");
+    console.log('Invalid choice. Select 1, 2, or 3, or type "exit".');
   }
 }
 
 // ---------------------------------------------------------------------------
-// SAVE STATE & CLOSING TREND COMMENT
+// SAVE STATE & CURRENT-RUN CLOSING TREND COMMENT
 // ---------------------------------------------------------------------------
 
 async function saveState(session: SavedSession): Promise<void> {
@@ -428,20 +457,7 @@ async function saveState(session: SavedSession): Promise<void> {
   console.log(`\nSession saved to .state/${session.userId}.json`);
 }
 
-async function loadSessionsFallback(): Promise<SavedSession[]> {
-  try {
-    const raw = await fs.readFile(path.join(process.cwd(), ".state", `${USER_ID}.json`), "utf-8");
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed;
-    if (Array.isArray(parsed?.sessions)) return parsed.sessions;
-    if (Array.isArray(parsed?.history)) return parsed.history;
-    return [];
-  } catch {
-    return [];
-  }
-}
-
-function summarizeSessionsFallback(sessions: SavedSession[]) {
+function summarizeRunSessions(sessions: SavedSession[]) {
   const totals = sessions.map((s) =>
     typeof s.evaluation?.total_score === "number"
       ? s.evaluation.total_score
@@ -474,67 +490,75 @@ function summarizeSessionsFallback(sessions: SavedSession[]) {
 
   return {
     sessionCount: count,
+    scoreProgression: totals,
     latestScore,
     rollingAvg: avg,
     deltaFromPrev: prevScore !== null ? latestScore - prevScore : null,
     weakest: metrics[0],
     strongest: metrics[metrics.length - 1],
-    recentFeedback: sessions
-      .slice(-3)
-      .map((s) => s.evaluation?.feedback)
-      .filter((f): f is string => Boolean(f)),
+    recentFeedback: sessions.map((s, idx) => ({
+      round: idx + 1,
+      form: s.form,
+      work: s.authorOrWork,
+      score: totals[idx],
+      feedback: s.evaluation?.feedback ?? "",
+    })),
   };
 }
 
-async function printClosingTrendComment(ai: GoogleGenAI | null, roundsThisRun: number): Promise<void> {
+async function printClosingTrendComment(
+  ai: GoogleGenAI | null,
+  runSessions: SavedSession[]
+): Promise<void> {
+  if (!runSessions || runSessions.length === 0) {
+    console.log("\nClosing note: No rounds completed in this run.");
+    return;
+  }
+
   const mod = trendsMod as Record<string, any>;
-  const loadFn = typeof mod.loadDefaultState === "function" ? mod.loadDefaultState : mod.loadHistory;
   const trendFn = typeof mod.computeTrends === "function" ? mod.computeTrends : mod.analyzeTrends;
+  const modTrends = typeof trendFn === "function" ? trendFn(runSessions) : null;
+  const localStats = summarizeRunSessions(runSessions);
 
-  const sessions: SavedSession[] =
-    typeof loadFn === "function" ? await loadFn() : await loadSessionsFallback();
+  const count = localStats.sessionCount;
+  const latest = localStats.latestScore;
+  const avg = localStats.rollingAvg;
+  const delta = localStats.deltaFromPrev;
+  const strongest = modTrends?.strongest ?? modTrends?.strongestMetric ?? localStats.strongest;
+  const weakest = modTrends?.weakest ?? modTrends?.weakestMetric ?? localStats.weakest;
 
-  if (!sessions || sessions.length === 0) {
-    console.log(`\nClosing note: No sessions found in .state/${USER_ID}.json yet.`);
-    return;
-  }
-
-  const rawTrends =
-    typeof trendFn === "function" ? trendFn(sessions) : summarizeSessionsFallback(sessions);
-
-  if (!rawTrends) {
-    console.log(`\nClosing note: No trend data available in .state/${USER_ID}.json yet.`);
-    return;
-  }
-
-  const count = rawTrends.sessionCount ?? rawTrends.totalSessions ?? sessions.length;
-  const latest = rawTrends.latestScore ?? 0;
-  const avg = rawTrends.rollingAvg ?? rawTrends.recentAverage ?? rawTrends.overallAverage ?? 0;
-  const delta = rawTrends.deltaFromPrev ?? null;
-  const strongest = rawTrends.strongest ?? rawTrends.strongestMetric;
-  const weakest = rawTrends.weakest ?? rawTrends.weakestMetric;
-  const recentFeedback = rawTrends.recentFeedback ?? rawTrends.recentNotes ?? [];
-
+  const progressionText = localStats.scoreProgression.map((s) => `${s}/50`).join(" -> ");
   const deltaText =
     typeof delta === "number"
-      ? `${delta >= 0 ? "+" : ""}${delta} vs. previous session (${latest}/50)`
-      : `latest ${latest}/50`;
+      ? `${delta >= 0 ? "+" : ""}${delta} vs. prior round (${latest}/50)`
+      : `single round (${latest}/50)`;
 
   const fallback =
-    `Across ${count} logged session(s) (${roundsThisRun} completed this run), your average is ${avg}/50 with ${deltaText}.` +
-    (strongest && weakest
-      ? ` Strongest: ${strongest.label ?? strongest.name} (${strongest.avg}/10); focus next on ${weakest.label ?? weakest.name} (${weakest.avg}/10).`
-      : "");
+    `In this run (${count} round${count === 1 ? "" : "s"}: ${progressionText}), your session average is ${avg}/50 (${deltaText}). ` +
+    `Strongest in this run: ${strongest.label ?? strongest.name} (${strongest.avg}/10); ` +
+    `focus next on ${weakest.label ?? weakest.name} (${weakest.avg}/10).`;
 
   let comment = fallback;
 
   if (ai) {
     const prompt = `
 You are delivering a concise, fact-based closing trend remark as the user exits lit-flow-flash.
-Base every statement strictly on the tracking data from .state/${USER_ID}.json:
-${JSON.stringify({ count, roundsThisRun, latest, avg, delta, strongest, weakest, recentFeedback }, null, 2)}
+Focus ONLY on the rounds completed during THIS run (do not mention any older historical sessions):
+${JSON.stringify(
+  {
+    roundsInThisRun: count,
+    scoreProgression: localStats.scoreProgression,
+    runAverage: avg,
+    deltaFromPreviousRound: delta,
+    strongestMetricThisRun: strongest,
+    weakestMetricThisRun: weakest,
+    roundByRoundNotes: localStats.recentFeedback,
+  },
+  null,
+  2
+)}
 
-Write 2–3 direct sentences remarking on the user's trend across sessions and naming one concrete focus for next time. Do not invent numbers or use fluff.
+Write 2–3 direct sentences remarking strictly on how the user's writing progressed across the rounds in THIS run and naming one concrete focus for their next round. Do not invent numbers or use fluff.
 `;
 
     try {
@@ -548,7 +572,7 @@ Write 2–3 direct sentences remarking on the user's trend across sessions and n
   }
 
   console.log("\n==========================================");
-  console.log(` CLOSING TREND COMMENT (.state/${USER_ID}.json)`);
+  console.log(` CLOSING TREND COMMENT (THIS RUN: ${count} ROUND${count === 1 ? "" : "S"})`);
   console.log("==========================================");
   console.log(comment);
   console.log("==========================================");
@@ -581,18 +605,14 @@ async function warmCorpus(): Promise<void> {
 // SINGLE SESSION & EXIT LOOP
 // ---------------------------------------------------------------------------
 
-function wantsExit(value: string): boolean {
-  const normalized = value.trim().toLowerCase();
-  return normalized === "exit" || normalized === "quit" || normalized === ":q";
-}
-
 async function runSingleSession(
   ai: GoogleGenAI,
   rl: readline.Interface,
   roundNumber: number
-): Promise<boolean> {
+): Promise<SavedSession | null> {
   console.log("\n==========================================");
   console.log(`      L I T - F L O W - F L A S H  (R${roundNumber})`);
+  console.log('      (Type "exit" at any prompt to quit)');
   console.log("==========================================");
 
   // Step 2: Select exact title
@@ -618,19 +638,17 @@ async function runSingleSession(
   console.log(`Opening: "${openFragment}"`);
   console.log(`Closing: "${closeFragment}"`);
   console.log("-----------------------------");
-  const confirmed = (await rl.question("Confirm these boundaries? [Y/n]: "))
-    .trim()
-    .toLowerCase();
+  const confirmed = (await promptLine(rl, 'Confirm these boundaries? [Y/n] (or "exit"): ')).toLowerCase();
   if (confirmed === "n" || confirmed === "no") {
     console.log("Cancelled round.");
-    return false;
+    return null;
   }
 
   // Step 5b: Echo the sliced span between the boundaries
   const passage = sliceSpan(prose, openFragment, closeFragment);
   if (!passage || countWords(passage) < 10) {
     console.error("Could not extract a valid span from your boundaries. Widen your selection and try again.");
-    return false;
+    return null;
   }
 
   console.log(`\n--- YOUR SECTION (${countWords(passage)} words) ---`);
@@ -647,7 +665,7 @@ async function runSingleSession(
   let wordCount = 0;
 
   while (true) {
-    submission = (await rl.question(`\nDraft your ${formConfig.name}:\n> `)).trim();
+    submission = await promptLine(rl, `\nDraft your ${formConfig.name} (or type "exit"):\n> `);
     wordCount = countWords(submission);
 
     if (formConfig.minWords === formConfig.maxWords) {
@@ -718,7 +736,7 @@ Return ONLY a JSON object matching this exact schema:
   console.log(evaluation.feedback);
   console.log("==========================================");
 
-  await saveState({
+  const sessionRecord: SavedSession = {
     timestamp: new Date().toISOString(),
     userId: USER_ID,
     form: formType,
@@ -731,16 +749,18 @@ Return ONLY a JSON object matching this exact schema:
     evaluation,
     sourceMode: "verbatim-canon",
     gutenbergId: work.gutenbergId,
-  });
+  };
 
-  return true;
+  await saveState(sessionRecord);
+
+  return sessionRecord;
 }
 
 export async function main() {
   const isWarm = process.argv.includes("--warm");
   const rl = readline.createInterface({ input, output });
   let ai: GoogleGenAI | null = null;
-  let roundsCompletedThisRun = 0;
+  const currentRunSessions: SavedSession[] = [];
 
   try {
     if (isWarm) {
@@ -758,26 +778,38 @@ export async function main() {
     ai = new GoogleGenAI({ apiKey });
 
     while (true) {
-      const completed = await runSingleSession(ai, rl, roundsCompletedThisRun + 1);
-      if (completed) {
-        roundsCompletedThisRun++;
+      const completedSession = await runSingleSession(
+        ai,
+        rl,
+        currentRunSessions.length + 1
+      );
+      if (completedSession) {
+        currentRunSessions.push(completedSession);
       }
 
-      const nextAction = (
-        await rl.question('\nPress [Enter] for another round, or type "exit" to quit: ')
-      ).trim();
-
-      if (wantsExit(nextAction)) {
-        break;
-      }
+      await promptLine(
+        rl,
+        '\nPress [Enter] for another round, or type "exit" to quit: '
+      );
     }
   } catch (error: any) {
-    console.error("\nExecution failed:", error?.message || error);
+    if (error instanceof ExitRequestedError) {
+      console.log("\nExiting cleanly...");
+      process.exitCode = 0;
+    } else {
+      console.error("\nExecution failed:", error?.message || error);
+      process.exitCode = 1;
+    }
   } finally {
-    if (!isWarm) {
-      await printClosingTrendComment(ai, roundsCompletedThisRun);
+    try {
+      if (!isWarm) {
+        await printClosingTrendComment(ai, currentRunSessions);
+      }
+    } catch (trendErr: any) {
+      console.error("\n[Trends] Could not generate closing remark:", trendErr?.message || trendErr);
     }
     rl.close();
+    process.exit(process.exitCode ?? 0);
   }
 }
 
